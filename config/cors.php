@@ -19,7 +19,11 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => [
+        'https://admin.concoypunto.com',
+        'https://concoypunto.com',
+        'https://www.concoypunto.com',
+    ],
 
     'allowed_origins_patterns' => [],
 
