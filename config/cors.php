@@ -23,7 +23,6 @@ return [
         'https://admin.concoypunto.com',
         'https://concoypunto.com',
         'https://www.concoypunto.com',
-        'http://localhost:5173',
     ],
 
     'allowed_origins_patterns' => [],
