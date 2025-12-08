@@ -87,6 +87,8 @@ class ProductController
                 return $product;
             });
 
+            $product->load('images');
+
             return response()->json($product, 201);
         } catch (ValidationException $e) {
             return response()->json([$e->errors()], 422);
