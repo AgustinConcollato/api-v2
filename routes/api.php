@@ -66,6 +66,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/', [OrderController::class, 'index']); // Listar todos los pedidos
         Route::post('/', [OrderController::class, 'store']); // Crear la cabecera de un nuevo pedido (vacío)
         Route::get('/{id}', [OrderController::class, 'show']); // Mostrar un pedido específico
+        Route::get('/{id}/pdf', [OrderController::class, 'downloadPdf']); // Descargar PDF del comprobante
         Route::put('/{id}', [OrderController::class, 'update']); // actualizar cabezera
         Route::post('/{orderId}/product', [OrderController::class, 'addProduct']); // Añadir un producto al pedido
         Route::delete('/product/{orderDetailId}', [OrderController::class, 'removeProduct']); // Eliminar un producto del pedido

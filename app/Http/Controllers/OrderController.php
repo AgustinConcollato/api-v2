@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Services\OrderService;
 use App\Models\Order;
 use Illuminate\Validation\ValidationException;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class OrderController
 {
@@ -286,6 +287,36 @@ class OrderController
             return response()->json([$e->errors()], 422);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 400);
+        }
+    }
+
+    /**
+     * Genera y descarga el PDF del comprobante de compra.
+     * @param string $id El UUID del pedido.
+     */
+    public function downloadPdf(string $id)
+    {
+        try {
+            // Cargar la orden con todas las relaciones necesarias
+            $order = Order::with('client', 'details.product', 'payments')->find($id);
+
+            if (!$order) {
+                return response()->json(['error' => 'Pedido no encontrado.'], 404);
+            }
+
+            // Generar el PDF usando la vista Blade
+            $pdf = Pdf::loadView('orders.receipt', compact('order'));
+
+            // Configurar el nombre del archivo
+            $fileName = 'comprobante-pedido-' . substr($order->id, 0, 8) . '-' . date('Y-m-d') . '.pdf';
+
+            // Devolver el PDF para descarga
+            return response($pdf->stream(), 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . $fileName . '"',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al generar el PDF: ' . $e->getMessage()], 500);
         }
     }
 }

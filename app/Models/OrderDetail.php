@@ -15,12 +15,10 @@ class OrderDetail extends Model
         'unit_price',
         'purchase_price',
         'discount_percentage',
-        'discount_fixed',
+        'discount_fixed_amount',
         'subtotal',
         'subtotal_with_discount',
     ];
-
-    // --- RELACIONES ---
 
     /**
      * El detalle de un pedido pertenece a un Pedido.
