@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comprobante de Compra - Pedido #{{ substr($order->id, 0, 8) }}</title>
+    <title>Pedido #{{ substr($order->id, 0, 8) }}</title>
     <style>
         * {
             margin: 0;
