@@ -41,7 +41,7 @@ class SupplierController
         $rules = [
             // El nombre debe ser único, ya que es el identificador principal
             'name' => 'required|string|max:255|unique:suppliers,name',
-            'contact_name' => 'nullable|string|max:255',
+            'contact_person' => 'nullable|string|max:255',
             // El email también debe ser único
             'email' => 'nullable|email|max:255|unique:suppliers,email',
             'phone' => 'nullable|string|max:50',
