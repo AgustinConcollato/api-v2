@@ -39,22 +39,6 @@ class CategoryService
     }
 
     /**
-     * Busca y retorna una categoría específica.
-     *
-     * @param int $id
-     * @return Category
-     */
-    public function getCategory(int $id): Category
-    {
-        // El controlador debe usar Route Model Binding, pero si no lo hiciera:
-        $category = Category::findOrFail($id);
-
-        $category->load('parent', 'children');
-
-        return $category;
-    }
-
-    /**
      * Actualiza una categoría existente.
      *
      * @param Category $category El objeto Category obtenido por Route Model Binding.

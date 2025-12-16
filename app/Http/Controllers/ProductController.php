@@ -467,7 +467,7 @@ class ProductController
     {
         // Reutilizamos gran parte de las reglas del método 'addPrices' que compartiste
         $rules = [
-            'suppliers' => 'required|array',
+            'suppliers' => 'array', // Permite array vacío para poder desasociar todos los proveedores
             'suppliers.*.supplier_id' => 'required|uuid|exists:suppliers,id', // 'uuid' si usas UUIDs
             'suppliers.*.purchase_price' => 'required|numeric|min:0',
             'suppliers.*.supplier_product_url' => 'nullable|url|max:512',
@@ -479,7 +479,7 @@ class ProductController
         ];
 
         $params = [
-            'suppliers.required' => 'El proveedor y el precio de compra es obligatorio.',
+            'suppliers.array' => 'Los proveedores deben ser un array.',
             'suppliers.*.supplier_id.exists' => 'El ID de uno de los proveedores no es válido.',
             'suppliers.*.purchase_price.required' => 'El precio de compra es obligatorio para cada proveedor.',
             'suppliers.*.purchase_price.numeric' => 'El precio de compra debe ser un número.',
@@ -497,7 +497,9 @@ class ProductController
             $product = DB::transaction(function () use ($validated, $product) {
 
                 // 1. Sincronizar Proveedores (asocia/actualiza el precio de compra en la tabla pivote)
-                $this->productService->syncSuppliers($product, $validated['suppliers']);
+                // Si suppliers no viene o está vacío, se desasocian todos los proveedores
+                $suppliers = $validated['suppliers'] ?? [];
+                $this->productService->syncSuppliers($product, $suppliers);
 
                 if (isset($validated['price_lists'])) {
                     $this->productService->syncPriceLists($product, $validated['price_lists']);
@@ -505,6 +507,12 @@ class ProductController
 
                 return $product;
             });
+
+            if ($product->barcodes()->count() > 0) {
+                $product->update(['status' => ProductStatus::Published]);
+            } else {
+                $product->update(['status' => ProductStatus::PendingBarcode]);
+            }
 
             $product->load('suppliers', 'priceLists');
 

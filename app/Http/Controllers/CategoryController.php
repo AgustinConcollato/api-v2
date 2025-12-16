@@ -53,15 +53,23 @@ class CategoryController
     public function store(Request $request)
     {
 
-        $validated = $request->validate([
+        $rules = [
             'name' => 'required|string|max:255|unique:categories,name',
             'parent_id' => 'nullable|exists:categories,id',
-        ]);
+        ];
+
+        $params = [
+            'name.required' => 'El nombre es obligatorio.',
+            'name.unique' => 'El nombre ya pertenece a otra categoría'
+        ];
 
         try {
+            $validated = $request->validate($rules, $params);
             // Delegar la creación al servicio
             $category = $this->categoryService->createCategory($validated);
             return response()->json($category, 201);
+        } catch (ValidationException $e) {
+            return response()->json([$e->errors()], 422);
         } catch (\Exception $e) {
             return response()->json(['error' => 'No se pudo crear la categoría.', 'message' => $e->getMessage()], 500);
         }
@@ -94,9 +102,15 @@ class CategoryController
         try {
             $updatedCategory = $this->categoryService->updateCategory($category, $validated);
 
-            return response()->json($updatedCategory);
+            // Devolver la categoría actualizada y todas las categorías para evitar otra llamada
+            $allCategories = $this->categoryService->getAllCategories();
+
+            return response()->json([
+                'category' => $updatedCategory,
+                'categories' => $allCategories
+            ]);
         } catch (ValidationException $e) {
-            return response()->json(['errors' => $e->errors()], 422);
+            return response()->json([$e->errors()], 422);
         } catch (\Exception $e) {
             return response()->json(['error' => 'No se pudo actualizar la categoría.', 'message' => $e->getMessage()], 500);
         }

@@ -39,7 +39,8 @@ class Category extends Model
      */
     public function children(): HasMany
     {
-        return $this->hasMany(Category::class, 'parent_id')->with('children');
+        // Cargar hijos y también el padre de cada hijo para que el front reciba la jerarquía completa.
+        return $this->hasMany(Category::class, 'parent_id')->with(['children', 'parent']);
     }
 
     /**
@@ -54,7 +55,7 @@ class Category extends Model
     public static function getTopLevelCategories()
     {
         $categories = Category::whereNull('parent_id')
-            ->with('children')
+            ->with(['children.parent', 'children.children'])
             ->orderBy('name')
             ->get();
 
