@@ -168,19 +168,14 @@ class ProductController
     {
         // 1. Reglas de Validación (solo campos escalares)
         $rules = [
-            'name' => 'required|string|max:255',
+            'name' => 'nullable|string|max:255',
             'description' => 'nullable|string',
-            'stock' => 'required|integer|min:0',
-        ];
-
-        $params = [
-            'name.required' => 'El nombre del producto es obligatorio.',
-            // ... (otras traducciones de mensajes simples)
+            'stock' => 'nullable|integer|min:0',
         ];
 
         try {
             // Valida solo los campos simples del Request
-            $validated = $request->validate($rules, $params);
+            $validated = $request->validate($rules);
 
             // 2. Actualización
             // Idealmente, usar un método en ProductService:
