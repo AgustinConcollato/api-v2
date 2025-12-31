@@ -23,7 +23,7 @@ class OrderController
      */
     public function index(Request $request)
     {
-        $query = Order::with('client', 'payments');
+        $query = Order::with('client', 'payments', 'details');
 
         if ($request->has('status')) {
             $status = $request->input('status');
@@ -47,6 +47,7 @@ class OrderController
         // $ordersData = $orders['data'];
         foreach ($orders as $order) {
             $order->balance_due = $this->orderService->getPendingBalance($order);
+            $order->total_cost = Order::find($order->id)->getTotalCostAttribute();
         }
 
         return response()->json($orders);
@@ -98,7 +99,7 @@ class OrderController
      */
     public function show(string $id)
     {
-        $order = Order::with('client', 'details.product.images', 'payments')->find($id);
+        $order = Order::with('client', 'details', 'details.product.images', 'payments')->find($id);
 
         if (!$order) {
             return response()->json(['error' => 'Pedido no encontrado'], 404);
@@ -106,6 +107,7 @@ class OrderController
 
         // Añadir saldo pendiente a la respuesta usando el servicio
         $order->balance_due = $this->orderService->getPendingBalance($order);
+        $order->total_cost = $order->getTotalCostAttribute();
 
         return response()->json($order);
     }

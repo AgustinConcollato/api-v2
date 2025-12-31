@@ -76,4 +76,15 @@ class Order extends Model
             ),
         );
     }
+
+    /**
+     * Costo del pedido
+     */
+    public function getTotalCostAttribute()
+    {
+        // Suma el precio de compra * cantidad de cada detalle
+        return $this->details->sum(function ($detail) {
+            return ($detail->purchase_price * 1.05) * $detail->quantity;
+        });
+    }
 }
