@@ -216,6 +216,35 @@ class ProductService
     }
 
     /**
+     * Obtiene productos con stock disponible para el catálogo PDF.
+     * Filtra productos que tengan al menos una imagen y precio en la lista especificada.
+     *
+     * @param int $priceListId ID de la lista de precios
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function getProductsForCatalog(int $priceListId = 1)
+    {
+        // Obtener productos con stock > 0
+        $products = Product::where('stock', '>', 0)
+            ->with([
+                'images' => function ($query) {
+                    $query->orderBy('position', 'asc');
+                },
+                'priceLists' => function ($query) use ($priceListId) {
+                    $query->where('price_list_id', $priceListId);
+                },
+                'categories'
+            ])
+            ->orderBy('name', 'asc')
+            ->get();
+
+        // Filtrar productos que tengan al menos una imagen y precio en la lista especificada
+        return $products->filter(function ($product) {
+            return $product->images->count() > 0 && $product->priceLists->count() > 0;
+        });
+    }
+
+    /**
      * Asocia/sincroniza categorías con el producto.
      * @param Product $product
      * @param array $categoryIds Array de IDs de categorías.

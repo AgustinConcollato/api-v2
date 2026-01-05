@@ -9,6 +9,7 @@ use App\Services\ProductService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ProductController
 {
@@ -516,6 +517,40 @@ class ProductController
             return response()->json([$e->errors()], 422);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error al actualizar precios y proveedores: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Genera y descarga el PDF del catálogo de productos con stock.
+     * @param Request $request
+     * @return \Illuminate\Http\Response
+     */
+    public function generateCatalogPdf(int $priceListId)
+    {
+        try {
+            $products = $this->productService->getProductsForCatalog($priceListId);
+
+            if ($products->isEmpty()) {
+                return response()->json(['error' => 'No hay productos con stock disponible para mostrar en el catálogo.'], 404);
+            }
+
+            // Generar el PDF usando la vista Blade
+            $pdf = Pdf::loadView('products.catalog', [
+                'products' => $products,
+                'priceListId' => $priceListId,
+                'generatedAt' => now()
+            ]);
+
+            // Configurar el nombre del archivo
+            $fileName = 'catalogo-productos-' . date('Y-m-d') . '.pdf';
+
+            // Devolver el PDF para descarga
+            return response($pdf->stream(), 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . $fileName . '"',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al generar el catálogo PDF: ' . $e->getMessage()], 500);
         }
     }
 }

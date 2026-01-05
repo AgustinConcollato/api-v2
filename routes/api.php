@@ -84,6 +84,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 // rutas públicas 
 Route::post('/login', [UserController::class, 'login']);
+Route::get('/catalog/pdf/{priceListId}', [ProductController::class, 'generateCatalogPdf']);
 
 Route::fallback(function () {
     return response()->json([
