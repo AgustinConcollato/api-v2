@@ -80,8 +80,6 @@
             width: 80px;
             height: 80px;
             object-fit: contain;
-            border: 1px solid #dee2e6;
-            border-radius: 3px;
         }
 
         .product-name {
