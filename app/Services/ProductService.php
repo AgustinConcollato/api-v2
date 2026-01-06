@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ProductStatus;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductBarcode;
@@ -218,14 +219,16 @@ class ProductService
     /**
      * Obtiene productos con stock disponible para el catálogo PDF.
      * Filtra productos que tengan al menos una imagen y precio en la lista especificada.
+     * Agrupa los productos por categoría.
      *
      * @param int $priceListId ID de la lista de precios
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @return \Illuminate\Support\Collection Colección agrupada por categoría
      */
     public function getProductsForCatalog(int $priceListId = 1)
     {
         // Obtener productos con stock > 0
         $products = Product::where('stock', '>', 0)
+            ->where('status', '=', ProductStatus::Published)
             ->with([
                 'images' => function ($query) {
                     $query->orderBy('position', 'asc');
@@ -239,9 +242,23 @@ class ProductService
             ->get();
 
         // Filtrar productos que tengan al menos una imagen y precio en la lista especificada
-        return $products->filter(function ($product) {
+        $filteredProducts = $products->filter(function ($product) {
             return $product->images->count() > 0 && $product->priceLists->count() > 0;
         });
+
+        // Agrupar productos por categoría (usando la primera categoría de cada producto)
+        $groupedByCategory = $filteredProducts->groupBy(function ($product) {
+            $firstCategory = $product->categories->first();
+            return $firstCategory ? $firstCategory->name : 'Sin categoría';
+        });
+
+        // Ordenar las categorías alfabéticamente y ordenar productos dentro de cada categoría
+        return $groupedByCategory->map(function ($products, $categoryName) {
+            return [
+                'category' => $categoryName,
+                'products' => $products->sortBy('name')->values()
+            ];
+        })->sortBy('category')->values();
     }
 
     /**
