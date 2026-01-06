@@ -247,6 +247,36 @@ class ProductController
         }
     }
 
+    /**
+     * Obtiene productos públicos sin información sensible (proveedores y precios de compra).
+     * Esta ruta es accesible sin autenticación.
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function publicIndex(Request $request)
+    {
+        try {
+            $filters = $request->only([
+                'search',
+                'category_id',
+                'stock_min',
+                'stock_max',
+                'price_min',
+                'price_max',
+                'price_list_id',
+                'sort_by',
+                'sort_order',
+                'per_page'
+            ]);
+
+            $products = $this->productService->getPublicProducts($filters);
+
+            return response()->json($products);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al obtener los productos.', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function storeBarcode(Request $request, Product $product)
     {
 

@@ -217,6 +217,125 @@ class ProductService
     }
 
     /**
+     * Obtiene productos públicos con filtros, búsqueda, ordenamiento y paginación.
+     * Excluye información sensible como proveedores y precios de compra.
+     * @param array $filters Array con los filtros de búsqueda
+     * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator
+     */
+    public function getPublicProducts(array $filters = [])
+    {
+        $query = Product::with(['images', 'categories', 'barcodes', 'priceLists']);
+
+        // 1. Búsqueda por nombre, SKU o descripción (fulltext con fallback)
+        if (!empty($filters['search'])) {
+            $this->search($query, $filters['search']);
+        }
+
+        // Solo productos publicados
+        $query->where('status', '=', ProductStatus::Published);
+
+        // 2. Filtro por categoría (puede ser array o single)
+        if (isset($filters['category_id'])) {
+            $categoryIds = is_array($filters['category_id'])
+                ? $filters['category_id']
+                : [$filters['category_id']];
+
+            $query->whereHas('categories', function ($q) use ($categoryIds) {
+                $q->whereIn('categories.id', $categoryIds);
+            });
+        }
+
+        // 3. Filtro por rango de stock
+        if (isset($filters['stock_min'])) {
+            $query->where('stock', '>=', $filters['stock_min']);
+        }
+        if (isset($filters['stock_max'])) {
+            $query->where('stock', '<=', $filters['stock_max']);
+        }
+
+        if (isset($filters['price_list_id'])) {
+            $listId = $filters['price_list_id'];
+
+            $query->with(['priceLists' => function ($query) use ($listId) {
+                $query->where('price_list_id', $listId);
+            }]);
+        } else {
+            $query->with('priceLists');
+        }
+
+        // 4. Filtro por rango de precio (usando la lista de precios por defecto o especificada)
+        $priceListId = $filters['price_list_id'] ?? 1;
+        if (isset($filters['price_min']) || isset($filters['price_max'])) {
+            $query->whereHas('priceLists', function ($q) use ($priceListId, $filters) {
+                $q->where('price_list_id', $priceListId);
+                if (isset($filters['price_min'])) {
+                    $q->where('list_product.price', '>=', $filters['price_min']);
+                }
+                if (isset($filters['price_max'])) {
+                    $q->where('list_product.price', '<=', $filters['price_max']);
+                }
+            });
+        }
+
+        // 5. Ordenamiento
+        $sortBy = $filters['sort_by'] ?? 'created_at';
+        $sortOrder = $filters['sort_order'] ?? 'desc';
+
+        // Validar que sort_by sea un campo válido
+        $allowedSortFields = ['name', 'stock', 'sku', 'price', 'created_at', 'updated_at'];
+        if (!in_array($sortBy, $allowedSortFields)) {
+            $sortBy = 'created_at';
+        }
+
+        // Validar que sort_order sea válido
+        $sortOrder = strtolower($sortOrder);
+        if (!in_array($sortOrder, ['asc', 'desc'])) {
+            $sortOrder = 'desc';
+        }
+
+        // Si el ordenamiento es por precio, necesitamos un subquery
+        if ($sortBy === 'price') {
+            $query->addSelect([
+                'sort_price' => DB::table('list_product')
+                    ->select('price')
+                    ->whereColumn('list_product.product_id', 'products.id')
+                    ->where('list_product.price_list_id', $priceListId)
+                    ->limit(1)
+            ])
+                ->orderBy('sort_price', $sortOrder);
+        } else {
+            $query->orderBy($sortBy, $sortOrder);
+        }
+
+        // 6. Paginación
+        $perPage = $filters['per_page'] ?? 20;
+        $perPage = min(max((int)$perPage, 1), 100); // Limitar entre 1 y 100
+
+        $products = $query->paginate($perPage);
+
+        // Remover información sensible de cada producto
+        $products->getCollection()->transform(function ($product) {
+            // Remover la relación de proveedores
+            unset($product->suppliers);
+            
+            // Limpiar las listas de precios para mantener solo el precio de venta
+            // (ya no incluye información de compra)
+            $product->priceLists->transform(function ($priceList) {
+                // Mantener solo el precio de venta, sin información adicional
+                return [
+                    'id' => $priceList->id,
+                    'name' => $priceList->name,
+                    'price' => $priceList->pivot->price ?? null,
+                ];
+            });
+
+            return $product;
+        });
+
+        return $products;
+    }
+
+    /**
      * Obtiene productos con stock disponible para el catálogo PDF.
      * Filtra productos que tengan al menos una imagen y precio en la lista especificada.
      * Agrupa los productos por categoría.
