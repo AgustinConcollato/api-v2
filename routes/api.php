@@ -25,7 +25,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/{product}/barcode', [ProductController::class, 'storeBarcode']);
         Route::post('/{product}/images', [ProductController::class, 'addImages']);
 
-        Route::get('/', [ProductController::class, 'index']);
+        // Route::get('/', [ProductController::class, 'index']);
         Route::get('/{product}', [ProductController::class, 'show']);
         Route::get('/barcode/{barcode}', [ProductController::class, 'getByBarcode']);
 
@@ -85,6 +85,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 // rutas públicas 
 Route::post('/login', [UserController::class, 'login']);
 Route::get('/catalog/pdf/{priceListId}', [ProductController::class, 'generateCatalogPdf']);
+Route::get('/products', [ProductController::class, 'index']);
 
 Route::fallback(function () {
     return response()->json([
