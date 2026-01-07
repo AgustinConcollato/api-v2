@@ -527,6 +527,7 @@ class ProductService
 
         $product->images;
         $product->priceLists;
+        $product->suppliers;
 
         return $product;
     }
