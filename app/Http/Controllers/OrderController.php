@@ -211,7 +211,7 @@ class OrderController
 
         $rules = [
             'client_id' => 'nullable|uuid|exists:clients,id',
-            'status' => 'nullable|in:pending,confirmed,shipped,completed,canceled',
+            'status' => 'nullable|in:pending,confirmed,shipped,completed,cancelled',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_fixed_amount' => 'nullable|numeric|min:0',
             'shipping_cost' => 'nullable|numeric|min:0',
