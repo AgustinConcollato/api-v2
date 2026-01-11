@@ -203,6 +203,12 @@ class OrderController
             return response()->json(['error' => 'Pedido no encontrado.'], 404);
         }
 
+        if ($order->status != 'processing') {
+            throw ValidationException::withMessages([
+                'status' => ["El pedido no esta en preparación, no se pueden editar."],
+            ]);
+        }
+
         $rules = [
             'client_id' => 'nullable|uuid|exists:clients,id',
             'status' => 'nullable|in:pending,confirmed,shipped,completed,canceled',
