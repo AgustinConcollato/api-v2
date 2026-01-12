@@ -198,7 +198,8 @@ class OrderController
      */
     public function update(Request $request, string $id)
     {
-        $order = Order::find($id);
+        $order = Order::with('details')->find($id);
+
         if (!$order) {
             return response()->json(['error' => 'Pedido no encontrado.'], 404);
         }

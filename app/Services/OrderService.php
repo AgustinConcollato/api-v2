@@ -131,7 +131,7 @@ class OrderService
 
             if ($order->status != 'processing') {
                 throw ValidationException::withMessages([
-                    'status' => ["El pedido no esta en preparación, no se pueden agregar más productos."],
+                    'status' => ["El pedido no esta en preparación, no se pueden eliminar más productos."],
                 ]);
             }
             // 1. DEVOLVER STOCK
@@ -170,6 +170,16 @@ class OrderService
             'discount_fixed_amount',
             'shipping_cost',
         ];
+
+        // si se modifica el esta a "cancelled", se debe devolver el stock de todos los productos
+        if (isset($data['status']) && $data['status'] === 'cancelled' && $order->status !== 'cancelled') {
+            foreach ($order->details as $detail) {
+                $product = Product::find($detail->product_id);
+                if ($product) {
+                    $product->increment('stock', $detail->quantity);
+                }
+            }
+        }
 
         // Filtrar solo los datos que corresponden a los campos actualizables
         $updateData = collect($data)->only($updatableFields)->filter(function ($value) {
