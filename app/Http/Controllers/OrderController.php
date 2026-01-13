@@ -21,36 +21,66 @@ class OrderController
     /**
      * Muestra una lista de todos los pedidos.
      */
+    // public function index(Request $request)
+    // {
+    //     $query = Order::with('client', 'payments', 'details');
+
+    //     if ($request->has('status')) {
+    //         $status = $request->input('status');
+    //         $validStatuses = [
+    //             'pending',
+    //             'cancelled',
+    //             'confirmed',
+    //             'delivered',
+    //             'shipped',
+    //             'processing'
+    //         ];
+
+    //         if (!in_array($status, $validStatuses)) {
+    //             return response()->json(['error' => 'Estado de pedido inválido.'], 400);
+    //         }
+    //         $query->where('status', $status);
+    //     }
+
+    //     $orders = $query->latest()->paginate(10);
+
+    //     foreach ($orders as $order) {
+    //         $order->balance_due = $this->orderService->getPendingBalance($order);
+    //         $order->total_cost = Order::find($order->id)->getTotalCostAttribute();
+    //     }
+
+    //     return response()->json($orders);
+    // }
+
     public function index(Request $request)
     {
-        $query = Order::with('client', 'payments', 'details');
 
-        if ($request->has('status')) {
-            $status = $request->input('status');
-            $validStatuses = [
-                'pending',
-                'cancelled',
-                'confirmed',
-                'delivered',
-                'shipped',
-                'processing'
-            ];
+        $rules = [
+            'start_date' => 'nullable|date_format:Y-m-d',
+            'end_date' => 'nullable|date_format:Y-m-d|after_or_equal:start_date',
+            'status' => 'nullable|string',
+            'client_id' => 'nullable|exists:clients,id',
+            'range' => 'nullable|string|in:week,month',
+        ];
 
-            if (!in_array($status, $validStatuses)) {
-                return response()->json(['error' => 'Estado de pedido inválido.'], 400);
-            }
-            $query->where('status', $status);
+        $params = [
+            'start_date.date_format' => 'La fecha de inicio debe tener el formato AAAA-MM-DD.',
+            'end_date.date_format' => 'La fecha de fin debe tener el formato AAAA-MM-DD.',
+            'end_date.after_or_equal' => 'La fecha de fin no puede ser anterior a la fecha de inicio.',
+            'status.in' => 'El estado seleccionado no es válido.',
+            'client_id.exists' => 'El cliente seleccionado no existe.',
+            'range.in' => 'El rango debe ser "week" (semana) o "month" (mes).',
+        ];
+
+        try {
+            $validated = $request->validate($rules, $params);
+            $orders = $this->orderService->searchOrders($validated);
+            return response()->json($orders);
+        } catch (ValidationException $e) {
+            return response()->json([$e->errors()], 400);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
         }
-
-        $orders = $query->latest()->paginate(10);
-
-        // $ordersData = $orders['data'];
-        foreach ($orders as $order) {
-            $order->balance_due = $this->orderService->getPendingBalance($order);
-            $order->total_cost = Order::find($order->id)->getTotalCostAttribute();
-        }
-
-        return response()->json($orders);
     }
 
     /**

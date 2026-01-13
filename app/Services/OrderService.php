@@ -30,6 +30,63 @@ class OrderService
     }
 
     /**
+     * Summary of searchOrders
+     * @param array $params
+     * @return \Illuminate\Pagination\LengthAwarePaginator
+     */
+    public function searchOrders(array $data)
+    {
+        $query = Order::with(['client', 'payments', 'details']);
+
+        // Filtro por Status
+        $query->when(isset($data['status']), function ($q) use ($data) {
+            $q->where('status', $data['status']);
+        });
+
+        // Filtro por Cliente
+        $query->when(isset($data['client_id']), function ($q) use ($data) {
+            $q->where('client_id', $data['client_id']);
+        });
+
+        // Filtro por Fechas (Rango manual)
+        if (isset($data['start_date']) && isset($data['end_date'])) {
+            $query->whereBetween('created_at', [
+                $data['start_date'] . ' 00:00:00',
+                $data['end_date'] . ' 23:59:59'
+            ]);
+        }
+        // Filtro por Fechas (Rango rápido)
+        elseif (isset($data['range'])) {
+            if ($data['range'] === 'week') {
+                $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
+            } elseif ($data['range'] === 'month') {
+                $query->whereMonth('created_at', now()->month)
+                    ->whereYear('created_at', now()->year);
+            }
+        }
+
+        // Filtro por Pendientes de Pago (Usando subconsulta para que funcione la paginación)
+        if (isset($data['pending_payment']) && $data['pending_payment']) {
+            // Suponiendo que el total está en la columna 'total_amount'
+            $query->where(function ($q) {
+                $q->whereDoesntHave('payments')
+                    ->orWhereRaw('(SELECT SUM(amount) FROM payments WHERE payments.order_id = orders.id) < total_amount');
+            });
+        }
+
+        $orders = $query->latest()->paginate(10);
+
+        // Transformamos los resultados dentro del servicio antes de devolverlos
+        $orders->getCollection()->transform(function ($order) {
+            $order->balance_due = $this->getPendingBalance($order);
+            $order->total_cost = $order->getTotalCostAttribute();
+            return $order;
+        });
+
+        return $orders;
+    }
+
+    /**
      * Añade un producto al pedido, actualiza el stock y recalcula totales.
      * @param Order $order El pedido.
      * @param array $item Los detalles del producto a añadir.
