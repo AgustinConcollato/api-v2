@@ -256,5 +256,38 @@ class DatabaseSeeder extends Seeder
         // ];
 
         // DB::table('price_lists')->insert($priceList);
+
+
+        ///////////////////////
+
+
+        $priceList = [
+            [
+                'name' => 'Lista Viaje',
+                'is_default' => 0,
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now()
+            ]
+        ];
+
+        DB::table('price_lists')->insert($priceList);
+
+
+        ////////////////////////
+
+
+        DB::statement("
+        INSERT INTO list_product (price_list_id, product_id, price, created_at, updated_at)
+        SELECT 
+        3, 
+        product_id, 
+        (purchase_price * 1.05) / 0.63, 
+        ?, 
+        ?
+        FROM product_supplier
+        ON DUPLICATE KEY UPDATE 
+        price = (purchase_price * 1.05) / 0.63,
+        updated_at = ?
+        ", [Carbon::now(), Carbon::now(), Carbon::now()]);
     }
 }
