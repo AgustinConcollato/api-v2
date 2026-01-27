@@ -317,7 +317,7 @@ class ProductService
         $products->getCollection()->transform(function ($product) {
             // Remover la relación de proveedores
             unset($product->suppliers);
-            
+
             // Limpiar las listas de precios para mantener solo el precio de venta
             // (ya no incluye información de compra)
             $product->priceLists->transform(function ($priceList) {
@@ -333,51 +333,6 @@ class ProductService
         });
 
         return $products;
-    }
-
-    /**
-     * Obtiene productos con stock disponible para el catálogo PDF.
-     * Filtra productos que tengan al menos una imagen y precio en la lista especificada.
-     * Agrupa los productos por categoría.
-     *
-     * @param int $priceListId ID de la lista de precios
-     * @return \Illuminate\Support\Collection Colección agrupada por categoría
-     */
-    public function getProductsForCatalog(int $priceListId = 1)
-    {
-        // Obtener productos con stock > 0
-        $products = Product::where('stock', '>', 0)
-            ->where('status', '=', ProductStatus::Published)
-            ->with([
-                'images' => function ($query) {
-                    $query->orderBy('position', 'asc');
-                },
-                'priceLists' => function ($query) use ($priceListId) {
-                    $query->where('price_list_id', $priceListId);
-                },
-                'categories'
-            ])
-            ->orderBy('name', 'asc')
-            ->get();
-
-        // Filtrar productos que tengan al menos una imagen y precio en la lista especificada
-        $filteredProducts = $products->filter(function ($product) {
-            return $product->images->count() > 0 && $product->priceLists->count() > 0;
-        });
-
-        // Agrupar productos por categoría (usando la primera categoría de cada producto)
-        $groupedByCategory = $filteredProducts->groupBy(function ($product) {
-            $firstCategory = $product->categories->first();
-            return $firstCategory ? $firstCategory->name : 'Sin categoría';
-        });
-
-        // Ordenar las categorías alfabéticamente y ordenar productos dentro de cada categoría
-        return $groupedByCategory->map(function ($products, $categoryName) {
-            return [
-                'category' => $categoryName,
-                'products' => $products->sortBy('name')->values()
-            ];
-        })->sortBy('category')->values();
     }
 
     /**
@@ -531,7 +486,6 @@ class ProductService
 
         return $product;
     }
-
 
     /**
      * Elimina imágenes del producto, tanto los archivos como los registros en DB.
@@ -789,6 +743,12 @@ class ProductService
         // Cargar las relaciones actualizadas para retornarlas
         $product->load(['priceLists']);
 
+        return $product;
+    }
+
+    public function updateProductStatus(Product $product, string $status)
+    {
+        $product->update(['status' => $status]);
         return $product;
     }
 

@@ -247,12 +247,6 @@ class ProductController
         }
     }
 
-    /**
-     * Obtiene productos públicos sin información sensible (proveedores y precios de compra).
-     * Esta ruta es accesible sin autenticación.
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
     public function publicIndex(Request $request)
     {
         try {
@@ -487,8 +481,6 @@ class ProductController
         }
     }
 
-    // ... dentro de la clase ProductController
-
     public function updateProductSuppliersPrices(Request $request, Product $product)
     {
         // Reutilizamos gran parte de las reglas del método 'addPrices' que compartiste
@@ -550,37 +542,28 @@ class ProductController
         }
     }
 
-    /**
-     * Genera y descarga el PDF del catálogo de productos con stock.
-     * @param Request $request
-     * @return \Illuminate\Http\Response
-     */
-    public function generateCatalogPdf(int $priceListId)
+    public function updateStatus(Request $request, Product $product)
     {
+        $rules = [
+            'status' => 'required|in:published,archived',
+        ];
+
+        $params = [
+            'status.required' => 'El estado es obligatorio.',
+            'status.in' => 'El estado seleccionado no es válido.',
+        ];
+
         try {
-            $products = $this->productService->getProductsForCatalog($priceListId);
+            $validated = $request->validate($rules, $params);
 
-            if ($products->isEmpty()) {
-                return response()->json(['error' => 'No hay productos con stock disponible para mostrar en el catálogo.'], 404);
-            }
+            // Llama al nuevo método del servicio que maneja la transacción
+            $product = $this->productService->updateProductStatus($product, $validated['status']);
 
-            // Generar el PDF usando la vista Blade
-            $pdf = Pdf::loadView('products.catalog', [
-                'products' => $products,
-                'priceListId' => $priceListId,
-                'generatedAt' => now()
-            ]);
-
-            // Configurar el nombre del archivo
-            $fileName = 'catalogo-productos-' . date('Y-m-d') . '.pdf';
-
-            // Devolver el PDF para descarga
-            return response($pdf->stream(), 200, [
-                'Content-Type' => 'application/pdf',
-                'Content-Disposition' => 'inline; filename="' . $fileName . '"',
-            ]);
+            return response()->json($product, 200);
+        } catch (ValidationException $e) {
+            return response()->json([$e->errors()], 422);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Error al generar el catálogo PDF: ' . $e->getMessage()], 500);
+            return response()->json([$e->getMessage()], 500);
         }
     }
 }

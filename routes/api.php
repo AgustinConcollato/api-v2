@@ -37,6 +37,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/{product}/images/reorder', [ProductController::class, 'reorderImages']);
         Route::put('/{product}', [ProductController::class, 'update']);
         Route::put('/{product}/suppliers-prices', [ProductController::class, 'updateProductSuppliersPrices']);
+        Route::put('/{product}/status', [ProductController::class, 'updateStatus']);
     });
 
     Route::prefix('categories')->group(function () {
@@ -84,7 +85,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 // rutas públicas 
 Route::post('/login', [UserController::class, 'login']);
-Route::get('/catalog/pdf/{priceListId}', [ProductController::class, 'generateCatalogPdf']);
 Route::get('/catalog', [ProductController::class, 'publicIndex']);
 
 Route::fallback(function () {
