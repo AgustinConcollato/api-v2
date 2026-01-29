@@ -56,25 +56,24 @@ class OrderService
             ]);
         }
         // Filtro por Fechas (Rango rápido)
-        elseif (isset($data['range'])) {
+        if (isset($data['start_date']) && isset($data['end_date']) && $data['start_date'] !== '' && $data['end_date'] !== '') {
+            // Rango manual
+            $query->whereBetween('created_at', [
+                $data['start_date'] . ' 00:00:00',
+                $data['end_date'] . ' 23:59:59'
+            ]);
+        } elseif (isset($data['range'])) {
             if ($data['range'] === 'week') {
                 $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
             } elseif ($data['range'] === 'month') {
                 $query->whereMonth('created_at', now()->month)
                     ->whereYear('created_at', now()->year);
             }
+            // Si $data['range'] === 'all', simplemente no entra en los if anteriores 
+            // y no se aplica ningún filtro de fecha, trayendo todo el historial.
         }
 
-        // Filtro por Pendientes de Pago (Usando subconsulta para que funcione la paginación)
-        if (isset($data['pending_payment']) && $data['pending_payment']) {
-            // Suponiendo que el total está en la columna 'total_amount'
-            $query->where(function ($q) {
-                $q->whereDoesntHave('payments')
-                    ->orWhereRaw('(SELECT SUM(amount) FROM payments WHERE payments.order_id = orders.id) < total_amount');
-            });
-        }
-
-        $orders = $query->latest()->paginate(10);
+        $orders = $query->latest()->paginate(20);
 
         // Transformamos los resultados dentro del servicio antes de devolverlos
         $orders->getCollection()->transform(function ($order) {

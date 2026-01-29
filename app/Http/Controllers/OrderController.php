@@ -60,7 +60,7 @@ class OrderController
             'end_date' => 'nullable|date_format:Y-m-d|after_or_equal:start_date',
             'status' => 'nullable|string',
             'client_id' => 'nullable|exists:clients,id',
-            'range' => 'nullable|string|in:week,month',
+            'range' => 'nullable|string|in:week,month,all',
         ];
 
         $params = [
