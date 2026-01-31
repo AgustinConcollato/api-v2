@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\OrderStatus;
 use App\Models\OrderDetail;
 use Illuminate\Http\Request;
 use App\Services\OrderService;
@@ -234,15 +235,9 @@ class OrderController
             return response()->json(['error' => 'Pedido no encontrado.'], 404);
         }
 
-        if ($order->status != 'processing') {
-            throw ValidationException::withMessages([
-                'status' => ["El pedido no esta en preparación, no se pueden editar."],
-            ]);
-        }
-
         $rules = [
             'client_id' => 'nullable|uuid|exists:clients,id',
-            'status' => 'nullable|in:pending,confirmed,shipped,completed,cancelled',
+            'status' => 'nullable|in:pending,confirmed,shipped,processing,cancelled,delivered',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_fixed_amount' => 'nullable|numeric|min:0',
             'shipping_cost' => 'nullable|numeric|min:0',
@@ -268,7 +263,7 @@ class OrderController
 
         try {
             $request->validate($rules, $params);
-            // 2. LÓGICA DE NEGOCIO: Actualizar la cabecera
+
             $updatedOrder = $this->orderService->updateOrderHeader($order, $request->all());
 
             // 3. RESPUESTA

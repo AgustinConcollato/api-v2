@@ -100,7 +100,7 @@ class OrderService
                 throw new \Exception("Producto no encontrado.");
             }
 
-            if ($order->status != 'processing') {
+            if ($order->status !== OrderStatus::Processing) {
                 throw ValidationException::withMessages([
                     'status' => ["El pedido no esta en preparación, no se pueden agregar más productos."],
                 ]);
@@ -185,9 +185,9 @@ class OrderService
             $order = $detail->order;
             $product = $detail->product;
 
-            if ($order->status != 'processing') {
+            if ($order->status !== OrderStatus::Processing) {
                 throw ValidationException::withMessages([
-                    'status' => ["El pedido no esta en preparación, no se pueden eliminar más productos."],
+                    'status' => ["El pedido no esta en preparación, no se pueden eliminar los productos."],
                 ]);
             }
             // 1. DEVOLVER STOCK
@@ -226,6 +226,25 @@ class OrderService
             'discount_fixed_amount',
             'shipping_cost',
         ];
+
+        if (isset($data['status'])) {
+            // Al usar OrderStatus::from(), transformas el string del request en un objeto Enum
+            $newStatus = OrderStatus::from($data['status']);
+
+            if (!$order->canTransitionTo($newStatus)) {
+                throw ValidationException::withMessages([
+                    'status' => ["Transición no permitida."],
+                ]);
+            }
+        }
+
+        if (isset($data['discount_percentage']) || isset($data['discount_fixed_amount']) || isset($data['shipping_cost'])) {
+            if (!in_array($order->status, [OrderStatus::Confirmed, OrderStatus::Processing])) {
+                throw ValidationException::withMessages([
+                    'status' => ["Solo se pueden editar costos y descuentos en pedidos en preparación o terminados."],
+                ]);
+            }
+        }
 
         // si se modifica el esta a "cancelled", se debe devolver el stock de todos los productos
         if (isset($data['status']) && $data['status'] === 'cancelled' && $order->status !== 'cancelled') {
@@ -266,9 +285,9 @@ class OrderService
             $product = $detail->product;
 
             // 1. VALIDAR ESTADO DEL PEDIDO
-            if ($order->status != 'processing') {
+            if ($order->status !== OrderStatus::Processing) {
                 throw ValidationException::withMessages([
-                    'status' => ["El pedido no está en preparación, no se pueden modificar productos."],
+                    'status' => ["El pedido no esta en preparación, no se pueden editar los productos."],
                 ]);
             }
 

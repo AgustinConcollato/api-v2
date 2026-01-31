@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
@@ -25,6 +26,46 @@ class Order extends Model
         'notes',
         'price_list_id',
     ];
+
+    protected $casts = [
+        'status' => OrderStatus::class, // <-- Esto es vital
+    ];
+
+    protected static array $statusTransitions = [
+        OrderStatus::Pending->value    => [OrderStatus::Processing, OrderStatus::Cancelled],
+        OrderStatus::Processing->value => [OrderStatus::Confirmed, OrderStatus::Cancelled],
+        OrderStatus::Confirmed->value  => [OrderStatus::Shipped, OrderStatus::Cancelled],
+        OrderStatus::Shipped->value    => [OrderStatus::Delivered, OrderStatus::Cancelled],
+        OrderStatus::Delivered->value  => [],
+        OrderStatus::Cancelled->value  => [],
+    ];
+
+    /**
+     * Verifica si el pedido puede cambiar a un nuevo estado.
+     */
+    public function canTransitionTo(OrderStatus|string $newStatus): bool
+    {
+        // 1. Si recibimos un string, lo intentamos convertir a Enum
+        if (is_string($newStatus)) {
+            $newStatus = OrderStatus::tryFrom($newStatus);
+        }
+    
+        // 2. Si el nuevo estado no es válido o no existe en el Enum
+        if (!$newStatus) return false;
+    
+        // 3. Obtenemos el valor actual (manejando si por alguna razón es string)
+        $currentStatusValue = $this->status instanceof OrderStatus 
+            ? $this->status->value 
+            : $this->status;
+    
+        // 4. Si el estado es el mismo, no hay transición
+        if ($currentStatusValue === $newStatus->value) return true;
+    
+        // 5. Validamos contra el mapa de transiciones
+        $allowed = self::$statusTransitions[$currentStatusValue] ?? [];
+        
+        return in_array($newStatus, $allowed);
+    }
 
     /**
      * Un Pedido pertenece a un Cliente.
