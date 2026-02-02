@@ -8,6 +8,7 @@ use App\Http\Controllers\PriceListController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\AnalyticsController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -78,6 +79,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/', [PaymentController::class, 'store']); // Registrar un nuevo pago
         Route::post('/refund', [PaymentController::class, 'storeRefund']);
         Route::get('/{order}', [PaymentController::class, 'paymentsByOrder']);
+    });
+
+    // Analytics
+    Route::prefix('analytics')->group(function () {
+        Route::get('/overview', [AnalyticsController::class, 'overview']);
     });
 
     Route::get('/price-lists', [PriceListController::class, 'index']);
