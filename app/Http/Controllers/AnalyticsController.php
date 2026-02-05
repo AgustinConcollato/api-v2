@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\AnalyticsService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Validator;
 
 class AnalyticsController
 {
@@ -42,6 +43,28 @@ class AnalyticsController
             return response()->json($data);
         } catch (ValidationException $e) {
             return response()->json([$e->errors()], 422);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Comparar dos meses (month_a/year_a vs month_b/year_b)
+     */
+    public function compareMonths(Request $request)
+    {
+        $rules = [
+            'month_a' => 'nullable|integer|min:1|max:12',
+            'year_a' => 'nullable|integer|min:2000',
+            'month_b' => 'nullable|integer|min:1|max:12',
+            'year_b' => 'nullable|integer|min:2000',
+        ];
+
+        $validated = $request->validate($rules);
+
+        try {
+            $data = $this->analyticsService->compareMonths($validated);
+            return response()->json($data);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }

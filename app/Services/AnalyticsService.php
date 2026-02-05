@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Image;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
 
 class AnalyticsService
 {
@@ -22,6 +23,8 @@ class AnalyticsService
         // EXCLUIR cancelled y pending por defecto
         $query->whereNotIn('status', ['cancelled', 'pending']);
 
+        $isMonthRange = false;
+
         // Aplicar filtros de fecha
         if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
             $query->whereBetween('created_at', [
@@ -33,6 +36,7 @@ class AnalyticsService
             if ($filters['range'] === 'week') {
                 $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
             } elseif ($filters['range'] === 'month') {
+                $isMonthRange = true;
                 $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year);
             } elseif ($filters['range'] === 'all') {
                 // no filter
@@ -132,7 +136,7 @@ class AnalyticsService
         // Calcular reinversión (10% de ganancia neta)
         $reinvestmentAmount = $profit * 0.1;
 
-        return [
+        $result = [
             'orders_count' => $totalOrders,
             'total_revenue' => round($totalRevenue, 2),
             'total_paid' => round($totalPaid, 2),
@@ -145,6 +149,117 @@ class AnalyticsService
             'average_order_value' => round($averageOrderValue, 2),
             'top_products' => $topProducts,
             'payments_by_status' => $paymentsByStatus,
+        ];
+
+        // Si el rango es "month", calcular automáticamente comparación con mes anterior
+        if ($isMonthRange) {
+            $prev = now()->copy()->subMonth();
+            $startPrev = $prev->copy()->startOfMonth()->toDateString();
+            $endPrev = $prev->copy()->endOfMonth()->toDateString();
+            $overviewPreviousMonth = $this->getOverview(['start_date' => $startPrev, 'end_date' => $endPrev]);
+
+            $result['comparison'] = $this->computeComparison($result, $overviewPreviousMonth);
+            $result['previous_month'] = $overviewPreviousMonth;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Helper privado: computar cambios entre dos overviews.
+     */
+    private function computeComparison(array $current, array $previous): array
+    {
+        $metrics = [
+            'total_revenue',
+            'net_profit',
+            'orders_count'
+        ];
+
+        $comparison = [];
+        foreach ($metrics as $m) {
+            $a = isset($current[$m]) ? (float) $current[$m] : 0.0;
+            $b = isset($previous[$m]) ? (float) $previous[$m] : 0.0;
+            $diff = $a - $b;
+            $percent = null;
+            if ($b != 0) {
+                $percent = ($diff / abs($b)) * 100;
+            }
+            $comparison[$m] = [
+                'current' => round($a, 2),
+                'previous' => round($b, 2),
+                'diff' => round($diff, 2),
+                'percent_change' => is_null($percent) ? null : round($percent, 2),
+            ];
+        }
+        return $comparison;
+    }
+
+    /**
+     * Comparar estadísticas entre dos meses.
+     * Parámetros opcionales en $params: 'month_a','year_a','month_b','year_b'
+     * Si no se proveen, compara mes actual (a) vs mes anterior (b).
+     * Retorna overview para ambos meses, top_products y un objeto 'comparison' con diffs y %.
+     *
+     * @param array $params
+     * @return array
+     */
+    public function compareMonths(array $params = []): array
+    {
+        $now = Carbon::now();
+
+        // Mes A = por defecto mes actual
+        $monthA = isset($params['month_a']) ? (int) $params['month_a'] : $now->month;
+        $yearA = isset($params['year_a']) ? (int) $params['year_a'] : $now->year;
+
+        // Mes B = por defecto mes anterior
+        if (isset($params['month_b']) && isset($params['year_b'])) {
+            $monthB = (int) $params['month_b'];
+            $yearB = (int) $params['year_b'];
+        } else {
+            $prev = $now->copy()->subMonth();
+            $monthB = $prev->month;
+            $yearB = $prev->year;
+        }
+
+        $startA = Carbon::create($yearA, $monthA, 1)->startOfMonth()->toDateString();
+        $endA = Carbon::create($yearA, $monthA, 1)->endOfMonth()->toDateString();
+
+        $startB = Carbon::create($yearB, $monthB, 1)->startOfMonth()->toDateString();
+        $endB = Carbon::create($yearB, $monthB, 1)->endOfMonth()->toDateString();
+
+        $overviewA = $this->getOverview(['start_date' => $startA, 'end_date' => $endA]);
+        $overviewB = $this->getOverview(['start_date' => $startB, 'end_date' => $endB]);
+
+        // Métricas a comparar
+        $metrics = [
+            'total_revenue',            
+            'net_profit',
+            'orders_count'
+        ];
+
+        $comparison = [];
+        foreach ($metrics as $m) {
+            $a = isset($overviewA[$m]) ? (float) $overviewA[$m] : 0.0;
+            $b = isset($overviewB[$m]) ? (float) $overviewB[$m] : 0.0;
+            $diff = $a - $b;
+            $percent = null;
+            if ($b != 0) {
+                $percent = ($diff / abs($b)) * 100;
+            }
+            $comparison[$m] = [
+                'a' => round($a, 2),
+                'b' => round($b, 2),
+                'diff' => round($diff, 2),
+                'percent_change' => is_null($percent) ? null : round($percent, 2),
+            ];
+        }
+
+        return [
+            'month_a' => ['month' => $monthA, 'year' => $yearA, 'start_date' => $startA, 'end_date' => $endA, 'overview' => $overviewA],
+            'month_b' => ['month' => $monthB, 'year' => $yearB, 'start_date' => $startB, 'end_date' => $endB, 'overview' => $overviewB],
+            'comparison' => $comparison,
+            'top_products' => ['a' => $overviewA['top_products'] ?? [], 'b' => $overviewB['top_products'] ?? []],
         ];
     }
 }

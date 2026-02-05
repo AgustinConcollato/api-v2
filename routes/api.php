@@ -84,6 +84,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Analytics
     Route::prefix('analytics')->group(function () {
         Route::get('/overview', [AnalyticsController::class, 'overview']);
+        Route::get('/compare-months', [AnalyticsController::class, 'compareMonths']);
     });
 
     Route::get('/price-lists', [PriceListController::class, 'index']);
