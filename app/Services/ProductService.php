@@ -158,9 +158,11 @@ class ProductService
         if (isset($filters['price_list_id'])) {
             $listId = $filters['price_list_id'];
 
-            $query->with(['priceLists' => function ($query) use ($listId) {
-                $query->where('price_list_id', $listId);
-            }]);
+            $query->with([
+                'priceLists' => function ($query) use ($listId) {
+                    $query->where('price_list_id', $listId);
+                }
+            ]);
         } else {
             $query->with('priceLists');
         }
@@ -211,7 +213,7 @@ class ProductService
 
         // 7. Paginación
         $perPage = $filters['per_page'] ?? 20;
-        $perPage = min(max((int)$perPage, 1), 100); // Limitar entre 1 y 100
+        $perPage = min(max((int) $perPage, 1), 100); // Limitar entre 1 y 100
 
         return $query->paginate($perPage);
     }
@@ -256,9 +258,11 @@ class ProductService
         if (isset($filters['price_list_id'])) {
             $listId = $filters['price_list_id'];
 
-            $query->with(['priceLists' => function ($query) use ($listId) {
-                $query->where('price_list_id', $listId);
-            }]);
+            $query->with([
+                'priceLists' => function ($query) use ($listId) {
+                    $query->where('price_list_id', $listId);
+                }
+            ]);
         } else {
             $query->with('priceLists');
         }
@@ -309,7 +313,7 @@ class ProductService
 
         // 6. Paginación
         $perPage = $filters['per_page'] ?? 20;
-        $perPage = min(max((int)$perPage, 1), 100); // Limitar entre 1 y 100
+        $perPage = min(max((int) $perPage, 1), 100); // Limitar entre 1 y 100
 
         $products = $query->paginate($perPage);
 
@@ -681,16 +685,41 @@ class ProductService
             return null;
         }
 
-        // 3. Eliminar el registro.
-        // El método delete() retorna true si la eliminación fue exitosa.
-        $wasDeleted = $barcodeEntry->delete();
+        // Obtenemos el producto asociado directamente (evitamos buscar por barcode)
+        $product = $barcodeEntry->product;
 
-        // Opcional: Si eliminas el código primario, puedes asignar un nuevo primario automáticamente
-        // si el producto aún tiene otros códigos de barras.
-        if ($barcodeEntry->is_primary && $barcodeEntry->product->barcodes()->count() > 0) {
-            // Asigna el primer código restante como nuevo primario
-            $barcodeEntry->product->barcodes()->first()->update(['is_primary' => true]);
-        }
+        // Guardamos si el entry era primario antes de borrarlo
+        $wasPrimary = (bool) $barcodeEntry->is_primary;
+
+        // Ejecutamos la eliminación y la actualización de estado en una transacción
+        $wasDeleted = DB::transaction(function () use ($barcodeEntry, $product, $wasPrimary) {
+            // 3. Eliminar el registro.
+            $deleted = $barcodeEntry->delete();
+
+            // Refrescar el modelo del producto para obtener recuentos actualizados
+            $product->refresh();
+
+            $barcodesCount = $product->barcodes()->count();
+            $priceListsCount = $product->priceLists()->count();
+
+            // Priorizar el estado "Incomplete" cuando ambos (barcodes y price lists) están vacíos
+            if ($barcodesCount === 0 && $priceListsCount === 0) {
+                $product->update(['status' => ProductStatus::Incomplete]);
+            } elseif ($barcodesCount > 0 && $priceListsCount > 0) {
+                $product->update(['status' => ProductStatus::Published]);
+            } elseif ($barcodesCount === 0) {
+                $product->update(['status' => ProductStatus::PendingBarcode]);
+            } elseif ($priceListsCount === 0) {
+                $product->update(['status' => ProductStatus::PendingPrices]);
+            }
+
+            // Si el código eliminado era primario y aún hay otros códigos, asignar uno nuevo
+            if ($wasPrimary && $barcodesCount > 0) {
+                $product->barcodes()->first()->update(['is_primary' => true]);
+            }
+
+            return $deleted;
+        });
 
         return $wasDeleted;
     }
@@ -835,7 +864,7 @@ class ProductService
         $dest = imagecreatetruecolor($newW, $newH);
 
         // Pasos para la transparencia PNG en el destino final
-        if ($extension === 'png' ||  $extension === 'webp') {
+        if ($extension === 'png' || $extension === 'webp') {
             imagealphablending($dest, false);
             imagesavealpha($dest, true);
         }
