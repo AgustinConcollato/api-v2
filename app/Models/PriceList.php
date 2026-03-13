@@ -40,6 +40,14 @@ class PriceList extends Model
     }
 
     /**
+     * Promociones que aplican a esta lista de precios.
+     */
+    public function promotions(): BelongsToMany
+    {
+        return $this->belongsToMany(Promotion::class, 'promotion_price_list');
+    }
+
+    /**
      * Relación uno a muchos con Clients.
      * Una lista de precios puede estar asignada a muchos clientes.
      */

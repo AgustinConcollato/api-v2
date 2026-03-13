@@ -9,6 +9,7 @@ use App\Enums\PaymentStatus;
 use App\Models\Order;
 use App\Models\OrderDetail;
 use App\Models\Product;
+use App\Models\Promotion;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -128,14 +129,8 @@ class OrderService
                 // El producto ya existe, solo sumamos la cantidad
                 $detail->quantity = $newTotalQuantity;
 
-                // Si el precio unitario y los descuentos vienen en el $item,
-                // generalmente se deberían actualizar/sobrescribir si el usuario lo indica, 
-                // o podrías optar por mantener los precios del detalle original.
-                // Para mantener la lógica simple y similar a tu código:
                 $detail->unit_price = $item['unit_price'];
                 $detail->purchase_price = $item['purchase_price'];
-                $detail->discount_percentage = $item['discount_percentage'] ?? 0.00;
-                $detail->discount_fixed_amount = $item['discount_fixed_amount'] ?? 0.00;
             } else {
                 // El producto NO existe, creamos un nuevo detalle
                 $detail = $order->details()->create([
@@ -143,15 +138,28 @@ class OrderService
                     'quantity' => $quantityToAdd,
                     'purchase_price' => $item['purchase_price'],
                     'unit_price' => $item['unit_price'],
-                    'discount_percentage' => $item['discount_percentage'] ?? 0.00,
-                    'discount_fixed_amount' => $item['discount_fixed_amount'] ?? 0.00,
+                    'discount_percentage' => 0.00,
+                    'discount_fixed_amount' => 0.00,
                     // Los campos de subtotal se calcularán y guardarán más abajo
                     'subtotal' => 0,
                     'subtotal_with_discount' => 0,
                 ]);
             }
 
-            // --- 3. CALCULAR SUBTOTAL DE LÍNEA (Usando los valores FINALES del detalle) ---
+            // --- 3. APLICAR PROMOCIÓN (si existe) ---
+            // Se calcula siempre usando los valores finales de cantidad y precio unitario
+            [$discountPercentage, $discountFixedAmount, $promotionId] = $this->calculatePromotionForLine(
+                $order,
+                $product,
+                $detail->quantity,
+                $detail->unit_price
+            );
+
+            $detail->discount_percentage = $discountPercentage;
+            $detail->discount_fixed_amount = $discountFixedAmount;
+            $detail->promotion_id = $promotionId;
+
+            // --- 4. CALCULAR SUBTOTAL DE LÍNEA (Usando los valores FINALES del detalle) ---
             // Se recalcula usando la nueva cantidad total ($detail->quantity) y los precios/descuentos aplicados
             $subtotal = $detail->quantity * $detail->unit_price;
             $subtotalWithDiscount = $subtotal - $detail->discount_fixed_amount;
@@ -161,13 +169,13 @@ class OrderService
             $detail->subtotal_with_discount = $subtotalWithDiscount;
             $detail->save(); // Guardar el detalle (actualizado o recién creado)
 
-            // --- 4. AJUSTAR STOCK ---
+            // --- 5. AJUSTAR STOCK ---
             // Solo restamos la cantidad que SE AGREGÓ AHORA ($quantityToAdd), 
             // ya que el stock de las unidades que ya estaban en el pedido ya fue restado antes.
             $product->stock -= $quantityToAdd;
             $product->save();
 
-            // --- 5. RECALCULAR TOTALES DEL PEDIDO ---
+            // --- 6. RECALCULAR TOTALES DEL PEDIDO ---
             $this->calculateOrderTotals($order);
 
             return $detail;
@@ -394,5 +402,95 @@ class OrderService
             'total_amount' => $totalAmount,
             'final_total_amount' => max(0, $finalTotal),
         ]);
+    }
+
+    /**
+     * Determina si hay una promoción aplicable para una línea y calcula los descuentos.
+     *
+     * Reglas:
+     * - Si el producto está en una promoción activa (fecha + is_active)
+     * - Y la promoción aplica a la lista de precios del pedido (o a todas si no tiene listas asociadas)
+     * - Entonces calcula:
+     *   - percentage: porcentaje sobre el subtotal, respetando tope max_discount_amount.
+     *   - fixed_amount: monto fijo (limitado por subtotal y tope).
+     *   - second_unit_percentage: desc. sobre la 2da unidad por cada par, respetando tope.
+     *
+     * @return array [discount_percentage, discount_fixed_amount, promotion_id|null]
+     */
+    protected function calculatePromotionForLine(
+        Order $order,
+        Product $product,
+        int $quantity,
+        float $unitPrice
+    ): array {
+        $promotion = $this->findApplicablePromotion($order, $product);
+
+        if (!$promotion || $quantity < $promotion->min_quantity) {
+            return [0.0, 0.0, null];
+        }
+
+        $subtotal = $quantity * $unitPrice;
+        $discountPercentage = 0.0;
+        $discountFixed = 0.0;
+
+        switch ($promotion->discount_type) {
+            case 'percentage':
+                $baseDiscount = $subtotal * ($promotion->discount_value / 100);
+
+                if ($promotion->max_discount_amount !== null && $baseDiscount > $promotion->max_discount_amount) {
+                    // Se aplica el tope como monto fijo
+                    $discountFixed = $promotion->max_discount_amount;
+                } else {
+                    $discountPercentage = $promotion->discount_value;
+                }
+                break;
+
+            case 'fixed_amount':
+                $discountFixed = min($promotion->discount_value, $subtotal);
+
+                if ($promotion->max_discount_amount !== null && $discountFixed > $promotion->max_discount_amount) {
+                    $discountFixed = $promotion->max_discount_amount;
+                }
+                break;
+
+            case 'second_unit_percentage':
+                // Para cada par de unidades, la segunda tiene X% de descuento
+                $pairs = intdiv($quantity, 2);
+                if ($pairs > 0) {
+                    $baseDiscount = $pairs * $unitPrice * ($promotion->discount_value / 100);
+
+                    if ($promotion->max_discount_amount !== null && $baseDiscount > $promotion->max_discount_amount) {
+                        $discountFixed = $promotion->max_discount_amount;
+                    } else {
+                        $discountFixed = $baseDiscount;
+                    }
+                }
+                break;
+        }
+
+        return [$discountPercentage, $discountFixed, $promotion->id];
+    }
+
+    /**
+     * Busca una promoción válida para un producto en el contexto de un pedido.
+     *
+     * - Debe estar activa (scope active()).
+     * - El producto debe estar vinculado a la promoción.
+     * - Si la promoción tiene listas de precio asociadas, debe incluir la del pedido.
+     */
+    protected function findApplicablePromotion(Order $order, Product $product): ?Promotion
+    {
+        /** @var Promotion|null $promotion */
+        $promotion = $product->promotions()
+            ->active()
+            ->where(function ($q) use ($order) {
+                $q->whereDoesntHave('priceLists')
+                    ->orWhereHas('priceLists', function ($q2) use ($order) {
+                        $q2->where('price_lists.id', $order->price_list_id);
+                    });
+            })
+            ->first();
+
+        return $promotion;
     }
 }

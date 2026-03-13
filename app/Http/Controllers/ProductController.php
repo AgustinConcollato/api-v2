@@ -161,6 +161,7 @@ class ProductController
         $product->suppliers;
         $product->priceLists;
         $product->barcodes;
+        $product->promotions;
 
         return $product;
     }

@@ -64,6 +64,15 @@ class Product extends Model
     }
 
     /**
+     * Promociones asociadas al producto.
+     * Por restricción de base de datos, un producto solo puede pertenecer a una promoción a la vez.
+     */
+    public function promotions(): BelongsToMany
+    {
+        return $this->belongsToMany(Promotion::class, 'promotion_product');
+    }
+
+    /**
      * El producto pertenece a muchas listas de precios.
      */
     public function priceLists(): BelongsToMany

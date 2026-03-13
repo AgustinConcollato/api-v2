@@ -11,6 +11,7 @@ class OrderDetail extends Model
     protected $fillable = [
         'order_id',
         'product_id',
+        'promotion_id',
         'quantity',
         'unit_price',
         'purchase_price',
@@ -34,5 +35,13 @@ class OrderDetail extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * Promoción aplicada a esta línea (si corresponde).
+     */
+    public function promotion(): BelongsTo
+    {
+        return $this->belongsTo(Promotion::class);
     }
 }
