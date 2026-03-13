@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Services\PaymentService;
 use App\Models\Order;
+use App\Models\Payment;
 use Illuminate\Validation\ValidationException;
 
 class PaymentController
@@ -16,6 +17,20 @@ class PaymentController
     public function __construct(PaymentService $paymentService)
     {
         $this->paymentService = $paymentService;
+    }
+
+    /**
+     * Muestra una lista de todos los pagos.
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function index(Request $request)
+    {
+        try {
+            $payments = $this->paymentService->getPayments($request->all());
+            return response()->json($payments);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 
     /**

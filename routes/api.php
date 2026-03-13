@@ -6,6 +6,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PriceListController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AnalyticsController;
@@ -76,6 +77,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
     Route::prefix('payments')->group(function () {
+        Route::get('/', [PaymentController::class, 'index']);
         Route::post('/', [PaymentController::class, 'store']); // Registrar un nuevo pago
         Route::post('/refund', [PaymentController::class, 'storeRefund']);
         Route::get('/{order}', [PaymentController::class, 'paymentsByOrder']);
@@ -88,6 +90,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
     Route::get('/price-lists', [PriceListController::class, 'index']);
+
+    Route::prefix('promotions')->group(function () {
+        Route::get('/', [PromotionController::class, 'index']);
+        Route::post('/', [PromotionController::class, 'store']);
+        Route::get('/{promotion}', [PromotionController::class, 'show']);
+        Route::put('/{promotion}', [PromotionController::class, 'update']);
+        Route::delete('/{promotion}', [PromotionController::class, 'destroy']);
+        Route::put('/{promotion}/products', [PromotionController::class, 'syncProducts']);
+        Route::put('/{promotion}/price-lists', [PromotionController::class, 'syncPriceLists']);
+    });
 });
 
 // rutas públicas 

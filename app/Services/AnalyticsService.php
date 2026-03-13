@@ -21,7 +21,8 @@ class AnalyticsService
         $query = Order::query();
 
         // EXCLUIR cancelled y pending por defecto
-        $query->whereNotIn('status', ['cancelled', 'pending']);
+        // $query->whereNotIn('status', ['cancelled', 'pending']);
+        $query->where('status', '=', 'delivered');
 
         $isMonthRange = false;
 
