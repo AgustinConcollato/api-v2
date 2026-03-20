@@ -118,7 +118,7 @@ class ProductService
      */
     public function getFilteredProducts(array $filters)
     {
-        $query = Product::with(['images', 'categories', 'suppliers', 'barcodes']);
+        $query = Product::with(['images', 'categories', 'suppliers', 'barcodes', 'promotions']);
 
         // 1. Búsqueda por nombre, SKU o descripción (fulltext con fallback)
         if (!empty($filters['search'])) {

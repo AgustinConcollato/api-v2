@@ -19,8 +19,15 @@ class PromotionController
             'per_page' => 'nullable|integer|min:1|max:100',
         ];
 
+        $params = [
+            'is_active.boolean' => 'El campo is_active debe ser true (1) o false (0).',
+            'per_page.integer' => 'El campo per_page debe ser un número entero.',
+            'per_page.min' => 'El campo per_page debe ser al menos 1.',
+            'per_page.max' => 'El campo per_page no puede ser mayor a 100.',
+        ];
+
         try {
-            $validated = $request->validate($rules);
+            $validated = $request->validate($rules, $params);
 
             $query = Promotion::query()->with(['products:id,name,sku', 'priceLists:id,name']);
 
@@ -211,12 +218,13 @@ class PromotionController
     public function syncProducts(Request $request, Promotion $promotion)
     {
         $rules = [
-            'product_ids' => 'required|array',
+            // `present` exige que llegue el campo, pero permite array vacío ([])
+            'product_ids' => 'present|array',
             'product_ids.*' => 'uuid|exists:products,id',
         ];
 
         $messages = [
-            'product_ids.required' => 'Debes enviar al menos un producto (puede ser array vacío para quitar todos).',
+            'product_ids.present' => 'Debes enviar el campo product_ids (puede ser array vacío para quitar todos).',
             'product_ids.*.exists' => 'Uno de los productos no existe.',
         ];
 
