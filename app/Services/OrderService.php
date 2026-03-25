@@ -313,39 +313,44 @@ class OrderService
                 }
             }
 
-            // 3. APLICAR ACTUALIZACIONES AL DETALLE
-
-            // Campos que se pueden actualizar en el detalle:
-            $updatableDetailFields = [
-                'quantity',
-                'unit_price',
-                'purchase_price',
-                'discount_percentage',
-                'discount_fixed_amount'
-            ];
-
-            // Se usa `forceFill` ya que estamos en el Service y manejamos la lógica.
-            // También puedes usar el método `update` con los campos filtrados.
-            $updateDetailData = collect($data)->only($updatableDetailFields)->all();
-
-            // 4. ACTUALIZAR DETALLE
-            $detail->update($updateDetailData);
-            $detail->refresh(); // Asegurarse de tener la nueva cantidad para el cálculo
-
-            // 5. AJUSTAR STOCK
-            if ($product) {
-                $product->stock -= $quantityDifference; // Resta la diferencia (si es positiva) o suma (si es negativa)
-                $product->save();
+            // 3. ACTUALIZAR CAMPOS BÁSICOS
+            // Filtramos solo los campos que vienen en el request para no sobreescribir con null
+            $updatableFields = ['quantity', 'unit_price', 'purchase_price'];
+            foreach ($updatableFields as $field) {
+                if (isset($data[$field])) {
+                    $detail->{$field} = $data[$field];
+                }
             }
 
-            // 6. CALCULAR Y ACTUALIZAR SUBTOTAL DE LÍNEA (lógica ya existente)
+            // 4. RECALCULAR PROMOCIÓN (Punto clave corregido)
+            // Al cambiar la cantidad o el precio unitario, debemos verificar si la promo sigue siendo válida
+            [$discountPercentage, $discountFixedAmount, $promotionId] = $this->calculatePromotionForLine(
+                $order,
+                $product,
+                $detail->quantity,
+                $detail->unit_price
+            );
+
+            $detail->discount_percentage = $discountPercentage;
+            $detail->discount_fixed_amount = $discountFixedAmount;
+            $detail->promotion_id = $promotionId;
+
+            // 5. CALCULAR SUBTOTALES DE LÍNEA
             $subtotal = $detail->quantity * $detail->unit_price;
             $subtotalWithDiscount = $subtotal - $detail->discount_fixed_amount;
             $subtotalWithDiscount *= (1 - ($detail->discount_percentage / 100));
 
             $detail->subtotal = $subtotal;
             $detail->subtotal_with_discount = $subtotalWithDiscount;
+
+            // Guardar todos los cambios del detalle
             $detail->save();
+
+            // 6. AJUSTAR STOCK DEL PRODUCTO
+            if ($product) {
+                $product->stock -= $quantityDifference;
+                $product->save();
+            }
 
             // 7. RECALCULAR TOTALES DEL PEDIDO
             $this->calculateOrderTotals($order);
