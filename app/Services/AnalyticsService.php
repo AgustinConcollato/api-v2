@@ -134,7 +134,7 @@ class AnalyticsService
             ->groupBy('status')
             ->get();
 
-        // Calcular reinversión (10% de ganancia neta)
+        // Reinversión: 10% de la ganancia antes de reinversión ($profit = revenue - cost - shipping).
         $reinvestmentAmount = $profit * 0.1;
 
         $result = [
@@ -143,8 +143,7 @@ class AnalyticsService
             'total_paid' => round($totalPaid, 2),
             'total_debt' => round($remainingToCollect, 2),
             'total_cost' => round($totalCost, 2),
-            'gross_profit' => round($profit, 2),
-            'net_profit' => round($profit, 2),
+            'net_profit' => round($profit - $reinvestmentAmount, 2),
             'reinvestment_amount' => round($reinvestmentAmount, 2),
             'gross_margin_percent' => round($grossMarginPercent, 2),
             'average_order_value' => round($averageOrderValue, 2),
