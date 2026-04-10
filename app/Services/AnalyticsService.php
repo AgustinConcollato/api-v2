@@ -65,7 +65,7 @@ class AnalyticsService
 
         $totalOrders = $orders->count();
         $totalRevenue = (float) $orders->sum('final_total_amount');
-        $shippingCost = (float) $orders->sum('delivery');
+        $shippingCost = (float) $orders->sum('shipping_cost');
 
         // Total pagado (pagos completados)
         $totalPaid = (float) DB::table('payments')
