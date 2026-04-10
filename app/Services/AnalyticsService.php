@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\Image;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 
 class AnalyticsService
@@ -66,6 +65,7 @@ class AnalyticsService
 
         $totalOrders = $orders->count();
         $totalRevenue = (float) $orders->sum('final_total_amount');
+        $shippingCost = (float) $orders->sum('delivery');
 
         // Total pagado (pagos completados)
         $totalPaid = (float) DB::table('payments')
@@ -81,7 +81,7 @@ class AnalyticsService
             ->select(DB::raw('SUM((purchase_price * 1.05) * quantity) as total'))
             ->value('total') ?? 0;
 
-        $profit = $totalRevenue - $totalCost;
+        $profit = $totalRevenue - $totalCost - $shippingCost;
         $grossMarginPercent = $totalRevenue > 0 ? ($profit / $totalRevenue) * 100 : 0;
 
         $averageOrderValue = $totalOrders > 0 ? ($totalRevenue / $totalOrders) : 0;
@@ -150,6 +150,7 @@ class AnalyticsService
             'average_order_value' => round($averageOrderValue, 2),
             'top_products' => $topProducts,
             'payments_by_status' => $paymentsByStatus,
+            'shipping_cost' => round($shippingCost, 2),
         ];
 
         // Si el rango es "month", calcular automáticamente comparación con mes anterior
