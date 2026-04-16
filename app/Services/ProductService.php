@@ -328,7 +328,7 @@ class ProductService
                 // Mantener solo el precio de venta, sin información adicional
                 return [
                     'id' => $priceList->id,
-                    'name' => $priceList->name,
+                    // 'name' => $priceList->name,
                     'price' => $priceList->pivot->price ?? null,
                 ];
             });
