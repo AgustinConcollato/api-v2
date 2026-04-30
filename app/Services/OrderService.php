@@ -331,7 +331,7 @@ class OrderService
                 $detail->unit_price
             );
 
-            if ($data['discount_percentage'] === 0.00 && $data['discount_fixed_amount'] === 0) {
+            if ($data['discount_percentage'] === 0 && $data['discount_fixed_amount'] === 0) {
                 $detail->discount_percentage = $discountPercentage;
                 $detail->discount_fixed_amount = $discountFixedAmount;
             } else {
