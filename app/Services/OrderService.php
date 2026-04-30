@@ -331,8 +331,14 @@ class OrderService
                 $detail->unit_price
             );
 
-            $detail->discount_percentage = $discountPercentage;
-            $detail->discount_fixed_amount = $discountFixedAmount;
+            if ($data['discount_percentage'] === 0.00 && $data['discount_fixed_amount'] === 0) {
+                $detail->discount_percentage = $discountPercentage;
+                $detail->discount_fixed_amount = $discountFixedAmount;
+            } else {
+                $detail->discount_percentage = $data['discount_percentage'];
+                $detail->discount_fixed_amount = $data['discount_fixed_amount'];
+            }
+
             $detail->promotion_id = $promotionId;
 
             // 5. CALCULAR SUBTOTALES DE LÍNEA
