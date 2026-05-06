@@ -3,12 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\Promotion;
+use App\Services\PromotionService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class PromotionController
 {
+
+    private $promotionService;
+    public function __construct(PromotionService $promotionService)
+    {
+        $this->promotionService = $promotionService;
+    }
     /**
      * Lista promociones con filtros opcionales.
      */
@@ -29,14 +35,7 @@ class PromotionController
         try {
             $validated = $request->validate($rules, $params);
 
-            $query = Promotion::query()->with(['products:id,name,sku', 'priceLists:id,name']);
-
-            if (isset($validated['is_active'])) {
-                $query->where('is_active', (bool) $validated['is_active']);
-            }
-
-            $perPage = $validated['per_page'] ?? 20;
-            $promotions = $query->latest()->paginate($perPage);
+            $promotions =  $this->promotionService->index($validated);
 
             return response()->json($promotions);
         } catch (ValidationException $e) {
@@ -71,42 +70,31 @@ class PromotionController
             'price_list_ids.*' => 'integer|exists:price_lists,id',
         ];
 
-        $messages = [
+        $params = [
             'name.required' => 'El nombre de la promoción es obligatorio.',
             'discount_type.required' => 'El tipo de descuento es obligatorio.',
             'discount_type.in' => 'El tipo de descuento debe ser: percentage, fixed_amount o second_unit_percentage.',
             'discount_value.required' => 'El valor del descuento es obligatorio.',
             'product_ids.*.exists' => 'Uno de los productos no existe.',
             'price_list_ids.*.exists' => 'Una de las listas de precios no existe.',
+            'starts_at.date' => 'La fecha de inicio debe ser una fecha válida.',
+            'ends_at.date' => 'La fecha de fin debe ser una fecha válida.',
+            'ends_at.after_or_equal' => 'La fecha de fin debe ser igual o posterior a la fecha de inicio.',
+            'is_active.boolean' => 'El campo is_active debe ser true (1) o false (0).',
+            'min_quantity.integer' => 'La cantidad mínima debe ser un número entero.',
+            'min_quantity.min' => 'La cantidad mínima debe ser al menos 1.',
+            'max_discount_amount.numeric' => 'El tope de descuento debe ser un número.',
+            'max_discount_amount.min' => 'El tope de descuento debe ser al menos 0.',
+            'product_ids.array' => 'El campo product_ids debe ser un array.',
+            'product_ids.*.uuid' => 'Uno de los productos no es válido.',
+            'price_list_ids.array' => 'El campo price_list_ids debe ser un array.',
+            'price_list_ids.*.integer' => 'Una de las listas de precios no es válida.',
         ];
 
         try {
-            $validated = $request->validate($rules, $messages);
+            $validated = $request->validate($rules, $params);
 
-            $promotion = DB::transaction(function () use ($validated) {
-                $data = collect($validated)->only([
-                    'name', 'description', 'starts_at', 'ends_at', 'is_active',
-                    'discount_type', 'discount_value', 'max_discount_amount', 'min_quantity',
-                ])->filter(fn ($v) => $v !== null)->all();
-
-                if (!isset($data['is_active'])) {
-                    $data['is_active'] = true;
-                }
-                if (!isset($data['min_quantity'])) {
-                    $data['min_quantity'] = 1;
-                }
-
-                $promotion = Promotion::create($data);
-
-                if (!empty($validated['product_ids'])) {
-                    $promotion->products()->sync($validated['product_ids']);
-                }
-                if (!empty($validated['price_list_ids'])) {
-                    $promotion->priceLists()->sync($validated['price_list_ids']);
-                }
-
-                return $promotion->load('products:id,name,sku', 'priceLists:id,name');
-            });
+            $promotion = $this->promotionService->store($validated);
 
             return response()->json($promotion, 201);
         } catch (ValidationException $e) {
@@ -128,8 +116,7 @@ class PromotionController
      */
     public function show(Promotion $promotion)
     {
-        $promotion->load('products:id,name,sku', 'priceLists:id,name');
-        return response()->json($promotion);
+        return $this->promotionService->show($promotion);
     }
 
     /**
@@ -161,24 +148,7 @@ class PromotionController
 
         try {
             $validated = $request->validate($rules, $messages);
-
-            $promotion = DB::transaction(function () use ($promotion, $validated) {
-                $data = collect($validated)->only([
-                    'name', 'description', 'starts_at', 'ends_at', 'is_active',
-                    'discount_type', 'discount_value', 'max_discount_amount', 'min_quantity',
-                ])->filter(fn ($v) => $v !== null)->all();
-
-                $promotion->update($data);
-
-                if (array_key_exists('product_ids', $validated)) {
-                    $promotion->products()->sync($validated['product_ids'] ?? []);
-                }
-                if (array_key_exists('price_list_ids', $validated)) {
-                    $promotion->priceLists()->sync($validated['price_list_ids'] ?? []);
-                }
-
-                return $promotion->fresh(['products:id,name,sku', 'priceLists:id,name']);
-            });
+            $promotion = $this->promotionService->update($promotion, $validated);
 
             return response()->json($promotion);
         } catch (ValidationException $e) {
@@ -230,8 +200,7 @@ class PromotionController
 
         try {
             $validated = $request->validate($rules, $messages);
-            $promotion->products()->sync($validated['product_ids']);
-            $promotion->load('products:id,name,sku');
+            $promotion = $this->promotionService->syncProducts($promotion, $validated['product_ids']);
             return response()->json($promotion);
         } catch (ValidationException $e) {
             return response()->json($e->errors(), 422);
@@ -265,8 +234,7 @@ class PromotionController
 
         try {
             $validated = $request->validate($rules, $messages);
-            $promotion->priceLists()->sync($validated['price_list_ids']);
-            $promotion->load('priceLists:id,name');
+            $promotion = $this->promotionService->syncPriceLists($promotion, $validated['price_list_ids']);
             return response()->json($promotion);
         } catch (ValidationException $e) {
             return response()->json($e->errors(), 422);
