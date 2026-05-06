@@ -313,6 +313,15 @@ class OrderService
                 }
             }
 
+            [$lastDiscountPercentage, $lastDiscountFixedAmount, $promotionId] = $this->calculatePromotionForLine(
+                $order,
+                $product,
+                $detail->quantity,
+                $detail->unit_price
+            );
+
+            $lastPromotionDiscount = ((float) $lastDiscountPercentage > 0.0) || ((float) $lastDiscountFixedAmount > 0.0);
+
             // 3. ACTUALIZAR CAMPOS BÁSICOS
             // Filtramos solo los campos que vienen en el request para no sobreescribir con null
             $updatableFields = ['quantity', 'unit_price', 'purchase_price'];
@@ -331,13 +340,34 @@ class OrderService
                 $detail->unit_price
             );
 
-            if (empty($data['discount_percentage']) && empty($data['discount_fixed_amount'])) {
-                $detail->discount_percentage = $discountPercentage;
-                $detail->discount_fixed_amount = $discountFixedAmount;
-            } else {
-                $detail->discount_percentage = $data['discount_percentage'];
-                $detail->discount_fixed_amount = $data['discount_fixed_amount'];
+            $hasPromotionDiscount = ((float) $discountPercentage > 0.0) || ((float) $discountFixedAmount > 0.0);
+
+            // Default: aplicar lo que devuelve la promo recalculada.
+            $nextDiscountPercentage = (float) $discountPercentage;
+            $nextDiscountFixedAmount = (float) $discountFixedAmount;
+
+            if (!$hasPromotionDiscount) {
+                // Si antes no había promo, mantener comportamiento actual: tomar descuento manual del request.
+                if (!$lastPromotionDiscount) {
+                    $nextDiscountPercentage = $data['discount_percentage'];
+                    $nextDiscountFixedAmount = $data['discount_fixed_amount'];
+                } else {
+                    // Si antes había promo pero ahora no, solo mantener manual si realmente cambió.
+                    $hasManualDiscountInput = !empty($data['discount_percentage']) || !empty($data['discount_fixed_amount']);
+                    $manualDiscountChanged = $hasManualDiscountInput && (
+                        $data['discount_percentage'] != $lastDiscountPercentage
+                        || $data['discount_fixed_amount'] != $lastDiscountFixedAmount
+                    );
+
+                    if ($manualDiscountChanged) {
+                        $nextDiscountPercentage = $data['discount_percentage'];
+                        $nextDiscountFixedAmount = $data['discount_fixed_amount'];
+                    }
+                }
             }
+
+            $detail->discount_percentage = $nextDiscountPercentage;
+            $detail->discount_fixed_amount = $nextDiscountFixedAmount;
 
             $detail->promotion_id = $promotionId;
 
