@@ -347,7 +347,7 @@ class MercadoLibreService
                 'item_price'        => $data['price'],
                 'verbose'           => true,
                 'condition'         => 'new',
-                'currency_id'       => 'ARG',
+                'currency_id'       => 'ARS',
                 'category_id'       => $data['category_id'],
                 'listing_type_id'   => $data['listing_type_id'],
                 'mode'              => $data['mode'],
