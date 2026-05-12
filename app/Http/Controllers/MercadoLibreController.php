@@ -1,0 +1,363 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Services\MercadoLibreService;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
+
+class MercadoLibreController
+{
+    protected MercadoLibreService $mlService;
+
+    public function __construct(MercadoLibreService $mlService)
+    {
+        $this->mlService = $mlService;
+    }
+
+    // -------------------------------------------------------------------------
+    // AUTH
+    // -------------------------------------------------------------------------
+
+    /**
+     * GET /mercado-libre/auth-url
+     * Devuelve la URL de autorización OAuth para redirigir al usuario a ML
+     */
+    public function getAuthUrl(Request $request)
+    {
+        try {
+            $url = $this->mlService->getAuthUrl();
+            return response()->json(['url' => $url], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error al generar URL de autorización', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * POST /mercado-libre/callback
+     * Recibe el code de OAuth y lo intercambia por tokens
+     */
+    public function callback(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'code' => 'required|string',
+            ], [
+                'code.required' => 'No se recibió el código de autorización.',
+            ]);
+
+            $user = $request->user();
+            $account = $this->mlService->exchangeCode($validated['code'], $user);
+
+            return response()->json([
+                'message' => 'Cuenta de Mercado Libre vinculada correctamente.',
+                'account' => $account,
+            ], 201);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Datos inválidos', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    /**
+     * POST /mercado-libre/revoke
+     * Desvincula la cuenta de ML del usuario
+     */
+    public function revoke(Request $request)
+    {
+        try {
+            $this->mlService->revoke($request->user());
+            return response()->json(['message' => 'Cuenta de Mercado Libre desvinculada.'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error al desvincular cuenta', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * GET /mercado-libre/profile
+     * Trae el perfil del usuario en ML
+     */
+    public function getProfile(Request $request)
+    {
+        try {
+            $profile = $this->mlService->getProfile($request->user());
+            return response()->json($profile, 200);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // CATEGORÍAS
+    // -------------------------------------------------------------------------
+
+    /**
+     * GET /mercado-libre/categories/search?q=texto
+     * Busca categorías de ML (para el autocomplete del formulario)
+     */
+    public function searchCategories(Request $request)
+    {
+        try {
+            $request->validate(['q' => 'required|string|min:2']);
+
+            $results = $this->mlService->searchCategories($request->q, $request->user());
+            return response()->json($results, 200);
+        } catch (ValidationException $e) {
+            return response()->json(['errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * GET /mercado-libre/categories/{categoryId}/attributes
+     * Trae los atributos requeridos/opcionales de una categoría
+     */
+    public function getCategoryAttributes(Request $request, string $categoryId)
+    {
+        try {
+            $attributes = $this->mlService->getCategoryAttributes($categoryId, $request->user());
+            return response()->json($attributes, 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // FEES / COMISIONES
+    // -------------------------------------------------------------------------
+
+    /**
+     * GET /mercado-libre/listing-fees
+     *
+     * Calcula las comisiones exactas para un listing antes de publicar.
+     * Intenta el endpoint oficial de ML; si falla, devuelve 422 para que
+     * el frontend use sus valores de fallback.
+     *
+     * Query params:
+     *   - category_id     string  requerido   ej: "MLA1055"
+     *   - listing_type_id string  requerido   ej: "gold_special"
+     *   - price           numeric requerido   ej: 15000
+     */
+    public function getListingFees(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'category_id'     => 'required|string',
+                'listing_type_id' => 'required|string',
+                'price'           => 'required|numeric|min:1',
+            ]);
+
+            $fees = $this->mlService->getListingFees(
+                $validated['category_id'],
+                $validated['listing_type_id'],
+                (float) $validated['price'],
+                $request->user(),
+            );
+
+            return response()->json($fees, 200);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Datos inválidos', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            // 422 → el frontend sabe que debe usar fallback fijo
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 422;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    public function getListingTypes(Request $request)
+    {
+        try {
+            $list = $this->mlService->getListingTypes($request->user());
+
+            return response()->json($list, 200);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Datos inválidos', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            // 422 → el frontend sabe que debe usar fallback fijo
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 422;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // ENVIOS
+    // -------------------------------------------------------------------------
+
+    public function getShippingPreferences(Request $request)
+    {
+        try {
+            $shippinPreferences = $this->mlService->getUserShippingPreferences($request->user());
+            return response()->json($shippinPreferences);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    public function getShippingCost(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'dimensions'      => 'required|string',
+                'price'           => 'required|numeric|min:0',
+                'category_id'     => 'required|string',
+                'listing_type_id' => 'required|string',
+                'mode'            => 'required|string',
+                'logistic_type'   => 'required|string',
+                'free_shipping'   => 'sometimes|boolean',
+            ]);
+
+            $cost = $this->mlService->getUserShippingCost($request->user(), $validated);
+            return response()->json($cost);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Datos inválidos', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+
+
+    // -------------------------------------------------------------------------
+    // PUBLICACIONES
+    // -------------------------------------------------------------------------
+
+    /**
+     * POST /mercado-libre/publications
+     * Publica un producto en ML
+     *
+     * Body esperado: { title, category_id, price, currency_id, available_quantity,
+     *                  buying_mode, listing_type_id, condition, shipping, attributes, pictures }
+     */
+    public function publish(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'title'               => 'required|string|max:60',
+                'category_id'         => 'required|string',
+                'price'               => 'required|numeric|min:0',
+                'currency_id'         => 'required|string',
+                'available_quantity'  => 'required|integer|min:1',
+                'buying_mode'         => 'required|string',
+                'listing_type_id'     => 'required|string',
+                'condition'           => 'required|in:new,used',
+                'shipping'            => 'required|array',
+                'attributes'          => 'nullable|array',
+                'pictures'            => 'nullable|array',
+                'pictures.*.source'   => 'url',
+            ]);
+
+            $result = $this->mlService->publishProduct($validated, $request->user());
+
+            return response()->json([
+                'message'   => 'Producto publicado en Mercado Libre.',
+                'ml_item'   => $result,
+            ], 201);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Datos inválidos', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    /**
+     * GET /mercado-libre/publications
+     * Lista las publicaciones del usuario en ML
+     * Query param: ?status=active|paused|closed (default: active)
+     */
+    public function getPublications(Request $request)
+    {
+        try {
+            $status = $request->query('status', 'active');
+            $offset = $request->query('offset', 0);
+            $publications = $this->mlService->getPublications($request->user(), $status, $offset);
+            return response()->json($publications, 200);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    /**
+     * GET /mercado-libre/publications/{mlItemId}
+     * Detalle de una publicación
+     */
+    public function getPublication(Request $request, string $mlItemId)
+    {
+        try {
+            $publication = $this->mlService->getPublication($mlItemId, $request->user());
+            return response()->json($publication, 200);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    /**
+     * PUT /mercado-libre/publications/{mlItemId}
+     * Actualiza una publicación (precio, stock, título, etc.)
+     */
+    public function updatePublication(Request $request, string $mlItemId)
+    {
+        try {
+            $data = $request->only(['title', 'price', 'available_quantity', 'listing_type_id', 'attributes']);
+            $result = $this->mlService->updatePublication($mlItemId, $data, $request->user());
+
+            return response()->json([
+                'message' => 'Publicación actualizada.',
+                'ml_item' => $result,
+            ], 200);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    /**
+     * POST /mercado-libre/publications/{mlItemId}/pause
+     */
+    public function pausePublication(Request $request, string $mlItemId)
+    {
+        try {
+            $result = $this->mlService->pausePublication($mlItemId, $request->user());
+            return response()->json(['message' => 'Publicación pausada.', 'ml_item' => $result], 200);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    /**
+     * POST /mercado-libre/publications/{mlItemId}/reactivate
+     */
+    public function reactivatePublication(Request $request, string $mlItemId)
+    {
+        try {
+            $result = $this->mlService->reactivatePublication($mlItemId, $request->user());
+            return response()->json(['message' => 'Publicación reactivada.', 'ml_item' => $result], 200);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    /**
+     * POST /mercado-libre/publications/{mlItemId}/close
+     */
+    public function closePublication(Request $request, string $mlItemId)
+    {
+        try {
+            $result = $this->mlService->closePublication($mlItemId, $request->user());
+            return response()->json(['message' => 'Publicación cerrada.', 'ml_item' => $result], 200);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+}

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountMercadoPagoController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\OrderController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\MercadoLibreController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -99,6 +101,44 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/{promotion}', [PromotionController::class, 'destroy']);
         Route::put('/{promotion}/products', [PromotionController::class, 'syncProducts']);
         Route::put('/{promotion}/price-lists', [PromotionController::class, 'syncPriceLists']);
+    });
+
+    Route::prefix('/mercado-pago')->group(function () {
+        Route::post('/get-token', [AccountMercadoPagoController::class, 'getToken']);
+        Route::post('/skip-step', [AccountMercadoPagoController::class, 'skipStep']);
+        Route::post('/revoke', [AccountMercadoPagoController::class, 'revoke']);
+        Route::get('/profile', [AccountMercadoPagoController::class, 'getMercadoPagoProfile']);
+    });
+
+    Route::prefix('/mercado-libre')->group(function () {
+        // Auth / vinculación
+        Route::get('/auth-url', [MercadoLibreController::class, 'getAuthUrl']);
+        Route::post('/callback', [MercadoLibreController::class, 'callback']);
+        Route::post('/revoke', [MercadoLibreController::class, 'revoke']);
+        Route::get('/profile', [MercadoLibreController::class, 'getProfile']);
+
+        // Categorías
+        Route::get('/categories/search', [MercadoLibreController::class, 'searchCategories']);
+        Route::get('/categories/{categoryId}/attributes', [MercadoLibreController::class, 'getCategoryAttributes']);
+
+        // Publicaciones
+        Route::get('/publications', [MercadoLibreController::class, 'getPublications']);
+        Route::post('/publications', [MercadoLibreController::class, 'publish']);
+        Route::get('/publications/{mlItemId}', [MercadoLibreController::class, 'getPublication']);
+        Route::put('/publications/{mlItemId}', [MercadoLibreController::class, 'updatePublication']);
+        Route::post('/publications/{mlItemId}/pause', [MercadoLibreController::class, 'pausePublication']);
+        Route::post('/publications/{mlItemId}/reactivate', [MercadoLibreController::class, 'reactivatePublication']);
+        Route::post('/publications/{mlItemId}/close', [MercadoLibreController::class, 'closePublication']);
+
+        // Comisiones / fees
+        // GET /mercado-libre/listing-fees?category_id=MLA1055&listing_type_id=gold_special&price=15000
+        Route::get('/listing-fees', [MercadoLibreController::class, 'getListingFees']);
+        Route::get('/listing-types', [MercadoLibreController::class, 'getListingTypes']);
+
+        // Envios
+        Route::get('/shipping-preferences', [MercadoLibreController::class, 'getShippingPreferences']);
+        Route::get('/shipping-cost', [MercadoLibreController::class, 'getShippingCost']);
+
     });
 });
 
