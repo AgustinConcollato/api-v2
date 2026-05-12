@@ -202,15 +202,16 @@ class MercadoLibreController
     {
         try {
             $validated = $request->validate([
-                'dimensions'      => 'required|string',
                 'price'           => 'required|numeric|min:0',
                 'category_id'     => 'required|string',
                 'listing_type_id' => 'required|string',
                 'mode'            => 'required|string',
                 'logistic_type'   => 'required|string',
-                'free_shipping'   => 'sometimes|boolean',
+                'free_shipping'   => 'sometimes|in:true,false,1,0',
+                'dimensions'      => 'required|string'
             ]);
 
+            $validated['free_shipping'] = filter_var($validated['free_shipping'] ?? false, FILTER_VALIDATE_BOOLEAN);
             $cost = $this->mlService->getUserShippingCost($request->user(), $validated);
             return response()->json($cost);
         } catch (ValidationException $e) {
