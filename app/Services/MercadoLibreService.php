@@ -463,7 +463,7 @@ class MercadoLibreService
             ->get("{$this->baseUrl}/users/{$account->ml_user_id}/items/search", [
                 'offset' => $offset,
                 'status' => $status,
-                'limit'  => 10,
+                'limit'  => 50,
             ]);
 
         if ($idsResponse->failed()) {
