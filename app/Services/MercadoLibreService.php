@@ -509,6 +509,53 @@ class MercadoLibreService
         return $response->json();
     }
 
+    public function getPublicationPerformance(string $mlItemId, User $user): array
+    {
+        $account = $this->getValidAccount($user);
+
+        $response = Http::withToken($account->access_token)
+            ->get("{$this->baseUrl}/item/{$mlItemId}/performance");
+
+        // 404 = performance no generado aún, devolver vacío en vez de error
+        if ($response->status() === 404) {
+            return [];
+        }
+
+        if ($response->failed()) {
+            throw new Exception('Error al obtener calidad de la publicación.', $response->status());
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * Sube una imagen a ML y devuelve el picture_id
+     */
+    public function uploadPicture(User $user, \Illuminate\Http\UploadedFile $file): array
+    {
+        $account = $this->getValidAccount($user);
+
+        $response = Http::withToken($account->access_token)
+            ->attach('file', $file->getContent(), $file->getClientOriginalName())
+            ->post("{$this->baseUrl}/pictures/items/upload");
+
+        if ($response->failed()) {
+            $msg = $response->json('message') ?? 'Error al subir imagen a Mercado Libre.';
+            throw new Exception($msg, $response->status());
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * Actualiza las imágenes de una publicación.
+     * $pictures = array de [ 'id' => '...' ] o [ 'source' => 'https://...' ]
+     */
+    public function updatePublicationPictures(string $mlItemId, array $pictures, User $user): array
+    {
+        return $this->updatePublication($mlItemId, ['pictures' => $pictures], $user);
+    }
+
     // -------------------------------------------------------------------------
     // HELPERS INTERNOS
     // -------------------------------------------------------------------------

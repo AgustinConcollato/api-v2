@@ -11,6 +11,7 @@ use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\GeminiAssistantController;
 use App\Http\Controllers\MercadoLibreController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -129,7 +130,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/publications/{mlItemId}/pause', [MercadoLibreController::class, 'pausePublication']);
         Route::post('/publications/{mlItemId}/reactivate', [MercadoLibreController::class, 'reactivatePublication']);
         Route::post('/publications/{mlItemId}/close', [MercadoLibreController::class, 'closePublication']);
-
+        Route::get('/publications/{mlItemId}/performance', [MercadoLibreController::class, 'getPublicationPerformance']);
+        Route::post('/pictures/upload', [MercadoLibreController::class, 'uploadPicture']);
+        Route::put('/publications/{mlItemId}/pictures', [MercadoLibreController::class, 'updatePublicationPictures']);
+        
         // Comisiones / fees
         // GET /mercado-libre/listing-fees?category_id=MLA1055&listing_type_id=gold_special&price=15000
         Route::get('/listing-fees', [MercadoLibreController::class, 'getListingFees']);
@@ -138,7 +142,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Envios
         Route::get('/shipping-preferences', [MercadoLibreController::class, 'getShippingPreferences']);
         Route::get('/shipping-cost', [MercadoLibreController::class, 'getShippingCost']);
-
     });
 });
 

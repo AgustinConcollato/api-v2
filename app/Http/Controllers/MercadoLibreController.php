@@ -271,6 +271,8 @@ class MercadoLibreController
      * GET /mercado-libre/publications
      * Lista las publicaciones del usuario en ML
      * Query param: ?status=active|paused|closed (default: active)
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
      */
     public function getPublications(Request $request)
     {
@@ -286,6 +288,24 @@ class MercadoLibreController
     }
 
     /**
+     * GET /mercado-libre/{mlItemId}/performance
+     * Estado de la publicación, recomendaciones para mejor posicionamiento
+     * @param Request $request
+     * @param string $mlItemId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getPublicationPerformance(Request $request, string $mlItemId)
+    {
+        try {
+            $data = $this->mlService->getPublicationPerformance($mlItemId, $request->user());
+            return response()->json($data);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    /**
      * GET /mercado-libre/publications/{mlItemId}
      * Detalle de una publicación
      */
@@ -294,6 +314,46 @@ class MercadoLibreController
         try {
             $publication = $this->mlService->getPublication($mlItemId, $request->user());
             return response()->json($publication, 200);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    public function uploadPicture(Request $request)
+    {
+        try {
+            $request->validate([
+                'file' => 'required|file|mimes:jpg,jpeg,png|max:10240',
+            ]);
+
+            $result = $this->mlService->uploadPicture($request->user(), $request->file('file'));
+            return response()->json($result, 201);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Archivo inválido', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    public function updatePublicationPictures(Request $request, string $mlItemId)
+    {
+        try {
+            $validated = $request->validate([
+                'pictures'         => 'required|array|min:1',
+                'pictures.*.id'    => 'sometimes|string',
+                'pictures.*.source' => 'sometimes|url',
+            ]);
+
+            $result = $this->mlService->updatePublicationPictures(
+                $mlItemId,
+                $validated['pictures'],
+                $request->user()
+            );
+            return response()->json($result);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Datos inválidos', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
             $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
             return response()->json(['message' => $e->getMessage()], $code);
