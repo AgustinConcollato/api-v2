@@ -149,6 +149,8 @@ class MercadoLibreController
                 'category_id'     => 'required|string',
                 'listing_type_id' => 'required|string',
                 'price'           => 'required|numeric|min:1',
+                'tags'            => 'nullable|string',
+                'billable_weight' => 'nullable|integer|min:1',
             ]);
 
             $fees = $this->mlService->getListingFees(
@@ -156,6 +158,8 @@ class MercadoLibreController
                 $validated['listing_type_id'],
                 (float) $validated['price'],
                 $request->user(),
+                $validated['tags'] ?? null,
+                isset($validated['billable_weight']) ? (int) $validated['billable_weight'] : null,
             );
 
             return response()->json($fees, 200);
@@ -367,13 +371,31 @@ class MercadoLibreController
     public function updatePublication(Request $request, string $mlItemId)
     {
         try {
-            $data = $request->only(['title', 'price', 'available_quantity', 'listing_type_id', 'attributes']);
+            $data = $request->only(['title', 'price', 'available_quantity', 'listing_type_id', 'attributes', 'tags']);
             $result = $this->mlService->updatePublication($mlItemId, $data, $request->user());
 
             return response()->json([
                 'message' => 'Publicación actualizada.',
                 'ml_item' => $result,
             ], 200);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    /**
+     * POST /mercado-libre/publications/{mlItemId}/listing-type
+     * Cambia el tipo de publicación (gold_special ↔ gold_pro)
+     */
+    public function changeListingType(Request $request, string $mlItemId)
+    {
+        try {
+            $validated = $request->validate(['listing_type_id' => 'required|string|in:gold_special,gold_pro']);
+            $result = $this->mlService->changeListingType($mlItemId, $validated['listing_type_id'], $request->user());
+            return response()->json(['message' => 'Tipo de publicación actualizado.', 'ml_item' => $result], 200);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Datos inválidos', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
             $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
             return response()->json(['message' => $e->getMessage()], $code);

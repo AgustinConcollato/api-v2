@@ -127,6 +127,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/publications', [MercadoLibreController::class, 'publish']);
         Route::get('/publications/{mlItemId}', [MercadoLibreController::class, 'getPublication']);
         Route::put('/publications/{mlItemId}', [MercadoLibreController::class, 'updatePublication']);
+        Route::post('/publications/{mlItemId}/listing-type', [MercadoLibreController::class, 'changeListingType']);
         Route::post('/publications/{mlItemId}/pause', [MercadoLibreController::class, 'pausePublication']);
         Route::post('/publications/{mlItemId}/reactivate', [MercadoLibreController::class, 'reactivatePublication']);
         Route::post('/publications/{mlItemId}/close', [MercadoLibreController::class, 'closePublication']);

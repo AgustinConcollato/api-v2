@@ -3,15 +3,27 @@
 namespace App\Services;
 
 use App\Models\AccountMercadoLibre;
-use App\Models\Product;
 use App\Models\User;
 use Exception;
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Pool;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 class MercadoLibreService
 {
-    private const PROFILE_CACHE_TTL_SECONDS = 3600; // 1 hora
+    private const PROFILE_CACHE_TTL_SECONDS            = 3600;   // 1 hora
+    private const LISTING_TYPES_CACHE_TTL_SECONDS      = 86400;  // 24 h (rara vez cambia)
+    private const CATEGORY_ATTRS_CACHE_TTL_SECONDS     = 86400;  // 24 h (rara vez cambia por categoría)
+    private const SEARCH_CATEGORIES_CACHE_TTL_SECONDS  = 3600;   // 1 h (autocomplete)
+    private const SHIPPING_PREFS_CACHE_TTL_SECONDS     = 1800;   // 30 min (cambian ocasionalmente)
+
+    /**
+     * Peso facturable por defecto en gramos para cálculo de comisiones.
+     * Se usa cuando el caller no provee el peso real del producto.
+     * 1000g = paquete chico promedio, neutro para estimaciones iniciales.
+     */
+    private const DEFAULT_BILLABLE_WEIGHT_GRAMS = 1000;
 
     private string $baseUrl = 'https://api.mercadolibre.com';
     private string $authUrl = 'https://auth.mercadolibre.com.ar/authorization';
@@ -120,9 +132,9 @@ class MercadoLibreService
         if (!$account) return;
 
         Http::post('https://api.mercadopago.com/oauth/revoke', [
-            'client_id' => env('MERCADO_LIBRE_CLIENT_ID'),
+            'client_id'     => env('MERCADO_LIBRE_CLIENT_ID'),
             'client_secret' => env('MERCADO_LIBRE_CLIENT_SECRET'),
-            'token' => $account->access_token,
+            'token'         => $account->access_token,
         ]);
 
         $this->forgetProfileCache($user);
@@ -140,8 +152,7 @@ class MercadoLibreService
             $this->profileCacheKey($user),
             self::PROFILE_CACHE_TTL_SECONDS,
             function () use ($account) {
-                $response = Http::withToken($account->access_token)
-                    ->get("{$this->baseUrl}/users/me");
+                $response = $this->clientForAccount($account)->get('/users/me');
 
                 if ($response->failed()) {
                     throw new Exception('Error al obtener perfil de Mercado Libre.', 500);
@@ -157,40 +168,47 @@ class MercadoLibreService
     // -------------------------------------------------------------------------
 
     /**
-     * Busca categorías de ML por texto (para el autocomplete del form)
+     * Busca categorías de ML por texto (para el autocomplete del form).
+     * Cacheado por query normalizada (1 h) — autocompletes repiten queries.
      */
     public function searchCategories(string $query, User $user): array
     {
-        $account = $this->getValidAccount($user);
+        $normalized = strtolower(trim($query));
+        $key = "ml_search_categories:" . md5($normalized);
 
-        $response = Http::withToken($account->access_token)
-            ->get("{$this->baseUrl}/sites/MLA/domain_discovery/search", [
-                'q'    => $query,
+        return Cache::remember($key, self::SEARCH_CATEGORIES_CACHE_TTL_SECONDS, function () use ($query, $user) {
+            $response = $this->client($user)->get('/sites/MLA/domain_discovery/search', [
+                'q'     => $query,
                 'limit' => 8,
             ]);
 
-        if ($response->failed()) {
-            throw new Exception('Error al buscar categorías en Mercado Libre.', 500);
-        }
+            if ($response->failed()) {
+                throw new Exception('Error al buscar categorías en Mercado Libre.', 500);
+            }
 
-        return $response->json();
+            return $response->json();
+        });
     }
 
     /**
-     * Trae los atributos requeridos/opcionales de una categoría ML
+     * Trae los atributos requeridos/opcionales de una categoría ML.
+     * Cacheado por categoría (24 h) — no varía por usuario, casi nunca cambia.
      */
     public function getCategoryAttributes(string $categoryId, User $user): array
     {
-        $account = $this->getValidAccount($user);
+        return Cache::remember(
+            "ml_category_attrs:{$categoryId}",
+            self::CATEGORY_ATTRS_CACHE_TTL_SECONDS,
+            function () use ($categoryId, $user) {
+                $response = $this->client($user)->get("/categories/{$categoryId}/attributes");
 
-        $response = Http::withToken($account->access_token)
-            ->get("{$this->baseUrl}/categories/{$categoryId}/attributes");
+                if ($response->failed()) {
+                    throw new Exception('Error al obtener atributos de la categoría.', 500);
+                }
 
-        if ($response->failed()) {
-            throw new Exception('Error al obtener atributos de la categoría.', 500);
-        }
-
-        return $response->json();
+                return $response->json();
+            }
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -217,20 +235,20 @@ class MercadoLibreService
      *   source:            "listing_prices_api"
      * }
      */
-    public function getListingFees(string $categoryId, string $listingTypeId, float $price, User $user): array
+    public function getListingFees(string $categoryId, string $listingTypeId, float $price, User $user, ?string $tags = null, ?int $billableWeight = null): array
     {
-        $account = $this->getValidAccount($user);
+        $params = [
+            'price'           => $price,
+            'listing_type_id' => $listingTypeId,
+            'category_id'     => $categoryId,
+            'currency_id'     => 'ARS',
+            'logistic_type'   => 'drop_off',
+            'shipping_mode'   => 'me2',
+            'billable_weight' => $billableWeight ?? self::DEFAULT_BILLABLE_WEIGHT_GRAMS,
+        ];
+        if ($tags) $params['tags'] = $tags;
 
-        $response = Http::withToken($account->access_token)
-            ->get("{$this->baseUrl}/sites/MLA/listing_prices", [
-                'price'           => $price,
-                'listing_type_id' => $listingTypeId,
-                'category_id'     => $categoryId,
-                'currency_id'     => 'ARS',
-                'logistic_type' => 'drop_off',
-                'shipping_mode' => 'me2',
-                'billable_weight' => 5828,
-            ]);
+        $response = $this->client($user)->get('/sites/MLA/listing_prices', $params);
 
         if ($response->failed()) {
             throw new Exception('Error al consultar comisiones en Mercado Libre.', $response->status());
@@ -244,17 +262,14 @@ class MercadoLibreService
         $match = null;
 
         if (isset($data['listing_type_id'])) {
-            // Objeto directo
             $match = $data;
         } elseif (is_array($data)) {
-            // Array de tipos → buscar el solicitado
             foreach ($data as $item) {
                 if (is_array($item) && ($item['listing_type_id'] ?? '') === $listingTypeId) {
                     $match = $item;
                     break;
                 }
             }
-            // Fallback: primer elemento del array
             if (!$match && count($data) > 0 && is_array($data[0])) {
                 $match = $data[0];
             }
@@ -264,117 +279,117 @@ class MercadoLibreService
             throw new Exception('No se encontró información de comisión para el tipo de publicación.', 422);
         }
 
-        $details         = $match['sale_fee_details'] ?? [];
-        $saleFeeAmount   = (float) $match['sale_fee_amount'];
-        $percentageFee   = (float) ($details['percentage_fee']       ?? 0);
-        $meliPctFee      = (float) ($details['meli_percentage_fee']  ?? 0);
-        $fixedFee        = (float) ($details['fixed_fee']            ?? 0);
-        $financingFee    = (float) ($details['financing_add_on_fee'] ?? 0);
-        $listingFee      = (float) ($match['listing_fee_amount']     ?? 0);
+        $details       = $match['sale_fee_details'] ?? [];
+        $saleFeeAmount = (float) $match['sale_fee_amount'];
+        $percentageFee = (float) ($details['percentage_fee']       ?? 0);
+        $meliPctFee    = (float) ($details['meli_percentage_fee']  ?? 0);
+        $fixedFee      = (float) ($details['fixed_fee']            ?? 0);
+        $financingFee  = (float) ($details['financing_add_on_fee'] ?? 0);
+        $listingFee    = (float) ($match['listing_fee_amount']     ?? 0);
 
         return [
-            // Totales
-            'sale_fee_amount'      => $saleFeeAmount,           // comisión total ARS
+            'sale_fee_amount'      => $saleFeeAmount,
             'commission_rate'      => $price > 0 ? round($saleFeeAmount / $price, 4) : 0,
-
-            // Desglose de la comisión
-            'percentage_fee'       => $percentageFee,           // % total (ej: 14.35)
-            'meli_percentage_fee'  => $meliPctFee,              // % solo ML
-            'fixed_fee'            => $fixedFee,                // cargo fijo ARS incluido en sale_fee
-            'financing_add_on_fee' => $financingFee,            // cargo adicional por cuotas
-
-            // Publicación
-            'listing_fee_amount'   => $listingFee,              // costo por publicar (0 en gold_special)
+            'percentage_fee'       => $percentageFee,
+            'meli_percentage_fee'  => $meliPctFee,
+            'fixed_fee'            => $fixedFee,
+            'financing_add_on_fee' => $financingFee,
+            'listing_fee_amount'   => $listingFee,
             'listing_type_id'      => $match['listing_type_id']   ?? $listingTypeId,
             'listing_type_name'    => $match['listing_type_name']  ?? '',
             'listing_exposure'     => $match['listing_exposure']   ?? '',
             'requires_picture'     => $match['requires_picture']   ?? false,
             'free_relist'          => $match['free_relist']        ?? false,
-
             'source'               => 'listing_prices_api',
         ];
     }
 
-    public function getListingTypes(User $user)
+    /**
+     * Lista los tipos de publicación (gold_pro, gold_special) con detalle.
+     * Cacheado global (24 h) — no varía por usuario, casi nunca cambia.
+     */
+    public function getListingTypes(User $user): array
     {
-        $account = $this->getValidAccount($user);
-        $listingDetails = [];
+        return Cache::remember(
+            'ml_listing_types:MLA',
+            self::LISTING_TYPES_CACHE_TTL_SECONDS,
+            function () use ($user) {
+                $client = $this->client($user);
+                $listingDetails = [];
 
-        // 1. Obtenemos la lista general
-        $response = Http::withToken($account->access_token)
-            ->get("{$this->baseUrl}/sites/MLA/listing_types");
+                $response = $client->get('/sites/MLA/listing_types');
 
-        if ($response->failed()) {
-            throw new Exception('Error al consultar tipos de publicación.', $response->status());
-        }
-
-        $types = $response->json();
-
-        // 2. Iteramos para obtener el detalle de cada tipo
-        foreach ($types as $type) {
-            // Asumiendo que $type es un array con la clave 'id'
-            if ($type['id'] == 'gold_pro' || $type['id'] == 'gold_special') {
-                $detailResponse = Http::withToken($account->access_token)
-                    ->get("{$this->baseUrl}/sites/MLA/listing_types/{$type['id']}");
-
-                if ($detailResponse->successful()) {
-                    $listingDetails[] = $detailResponse->json();
+                if ($response->failed()) {
+                    throw new Exception('Error al consultar tipos de publicación.', $response->status());
                 }
-            }
-        }
 
-        return $listingDetails;
+                foreach ($response->json() as $type) {
+                    if ($type['id'] === 'gold_pro' || $type['id'] === 'gold_special') {
+                        $detailResponse = $client->get("/sites/MLA/listing_types/{$type['id']}");
+                        if ($detailResponse->successful()) {
+                            $listingDetails[] = $detailResponse->json();
+                        }
+                    }
+                }
+
+                return $listingDetails;
+            }
+        );
     }
 
     // -------------------------------------------------------------------------
     // ENVIOS
     // -------------------------------------------------------------------------
 
+    /**
+     * Preferencias de envío del usuario (cacheado 30 min por usuario).
+     */
     public function getUserShippingPreferences(User $user): array
     {
         $account = $this->getValidAccount($user);
 
-        $response = Http::withToken($account->access_token)
-            ->get("{$this->baseUrl}/users/{$account->ml_user_id}/shipping_preferences");
+        return Cache::remember(
+            "ml_shipping_prefs:user:{$user->id}",
+            self::SHIPPING_PREFS_CACHE_TTL_SECONDS,
+            function () use ($account) {
+                $response = $this->clientForAccount($account)
+                    ->get("/users/{$account->ml_user_id}/shipping_preferences");
 
-        if ($response->failed()) {
-            throw new Exception('No se pudieron obtener las preferencias de envío.');
-        }
+                if ($response->failed()) {
+                    throw new Exception('No se pudieron obtener las preferencias de envío.');
+                }
 
-        return $response->json();
+                return $response->json();
+            }
+        );
     }
 
     public function getUserShippingCost(User $user, array $data): array
     {
         $account = $this->getValidAccount($user);
+        $profile = $this->getProfile($user);
+        $zipCode = $profile['address']['zip_code'] ?? null;
+        $stateId = $profile['address']['state'] ?? null;
 
-        $profile  = $this->getProfile($user);
-        $zipCode  = $profile['address']['zip_code'] ?? null;
-        $stateId  = $profile['address']['state'] ?? null;
-
-        $response = Http::withToken($account->access_token)
-            ->get("{$this->baseUrl}/users/{$account->ml_user_id}/shipping_options/free", [
-                'dimensions'        => $data['dimensions'] ?? '10x10x10,500',
-                'item_price'        => $data['price'],
-                'verbose'           => true,
-                'condition'         => 'new',
-                'currency_id'       => 'ARS',
-                'category_id'       => $data['category_id'],
-                'listing_type_id'   => $data['listing_type_id'],
-                'mode'              => $data['mode'],
-                'logistic_type'     => $data['logistic_type'],
-                'zip_code'          => $zipCode,
-                'state_id'          => $stateId,
+        $response = $this->clientForAccount($account)
+            ->get("/users/{$account->ml_user_id}/shipping_options/free", [
+                'dimensions'      => $data['dimensions'] ?? '10x10x10,500',
+                'item_price'      => $data['price'],
+                'verbose'         => true,
+                'condition'       => 'new',
+                'currency_id'     => 'ARS',
+                'category_id'     => $data['category_id'],
+                'listing_type_id' => $data['listing_type_id'],
+                'mode'            => $data['mode'],
+                'logistic_type'   => $data['logistic_type'],
+                'zip_code'        => $zipCode,
+                'state_id'        => $stateId,
                 'free_shipping'   => filter_var($data['free_shipping'] ?? false, FILTER_VALIDATE_BOOLEAN),
             ]);
 
         if ($response->failed()) {
             throw new Exception(json_encode($response->json()));
         }
-
-        // if ($response->failed()) {
-        //     throw new \Exception('No se pudieron obtener los costos del envío.', 422);
-        // }
 
         return $response->json();
     }
@@ -389,30 +404,26 @@ class MercadoLibreService
      * $data esperado:
      * [
      *   'title'           => string,
-     *   'category_id'     => string,   // ej: 'MLA1055'
+     *   'category_id'     => string,
      *   'price'           => float,
      *   'currency_id'     => 'ARS',
      *   'available_quantity' => int,
      *   'buying_mode'     => 'buy_it_now',
-     *   'listing_type_id' => 'gold_special', // free | gold_special | gold_pro
+     *   'listing_type_id' => 'gold_special',
      *   'condition'       => 'new' | 'used',
      *   'shipping'        => [...],
      *   'attributes'      => [...],
-     *   'pictures'        => [...],    // [['source' => 'https://...'], ...]
+     *   'pictures'        => [...],
      * ]
      */
     public function publishProduct(array $data, User $user): array
     {
-        $account = $this->getValidAccount($user);
-
-        $response = Http::withToken($account->access_token)
-            ->post("{$this->baseUrl}/items", $data);
+        $response = $this->client($user)->post('/items', $data);
 
         $result = $response->json();
 
         if ($response->failed()) {
-            $msg = $result['message'] ?? $result['error'] ?? 'Error al publicar en Mercado Libre';
-            throw new Exception(json_encode($response->json()), $response->status());
+            throw new Exception(json_encode($result), $response->status());
         }
 
         return $result;
@@ -423,15 +434,29 @@ class MercadoLibreService
      */
     public function updatePublication(string $mlItemId, array $data, User $user): array
     {
-        $account = $this->getValidAccount($user);
-
-        $response = Http::withToken($account->access_token)
-            ->put("{$this->baseUrl}/items/{$mlItemId}", $data);
+        $response = $this->client($user)->put("/items/{$mlItemId}", $data);
 
         $result = $response->json();
 
         if ($response->failed()) {
             $msg = $result['message'] ?? 'Error al actualizar publicación';
+            throw new Exception($msg, $response->status());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Cambia el tipo de publicación (gold_special ↔ gold_pro) vía POST /items/{id}/listing_type
+     */
+    public function changeListingType(string $mlItemId, string $listingTypeId, User $user): array
+    {
+        $response = $this->client($user)->post("/items/{$mlItemId}/listing_type", ['id' => $listingTypeId]);
+
+        $result = $response->json();
+
+        if ($response->failed()) {
+            $msg = $result['message'] ?? 'Error al cambiar tipo de publicación';
             throw new Exception($msg, $response->status());
         }
 
@@ -463,40 +488,48 @@ class MercadoLibreService
     }
 
     /**
-     * Lista las publicaciones activas del usuario en ML
+     * Lista las publicaciones del usuario en ML.
+     * Obtiene IDs primero, luego trae detalles en chunks de 20 en PARALELO.
+     * Antes: N chunks secuenciales (~3-5 s). Ahora: todos en paralelo (~1 s).
      */
     public function getPublications(User $user, string $status = 'active', int $offset = 0): array
     {
         $account = $this->getValidAccount($user);
+        $client  = $this->clientForAccount($account);
 
-        // Primero obtenemos los IDs de publicaciones
-        $idsResponse = Http::withToken($account->access_token)
-            ->get("{$this->baseUrl}/users/{$account->ml_user_id}/items/search", [
-                'offset' => $offset,
-                'status' => $status,
-                'limit'  => 50,
-            ]);
+        $idsResponse = $client->get("/users/{$account->ml_user_id}/items/search", [
+            'offset' => $offset,
+            'status' => $status,
+            'limit'  => 50,
+        ]);
 
         if ($idsResponse->failed()) {
             throw new Exception('Error al obtener publicaciones.', 500);
         }
 
         $ids = $idsResponse->json()['results'] ?? [];
-
         if (empty($ids)) return [];
 
-        // Traemos detalle de los items en bulk (hasta 20 por request)
-        $chunks = array_chunk($ids, 20);
+        $chunks = array_values(array_chunk($ids, 20));
+        $token  = $account->access_token;
+        $base   = $this->baseUrl;
+
+        // Todos los chunks de detalle en paralelo
+        $responses = Http::pool(fn (Pool $pool) => array_map(
+            fn ($chunk, $i) => $pool->as("chunk_{$i}")
+                ->withToken($token)
+                ->acceptJson()
+                ->timeout(30)
+                ->get("{$base}/items", ['ids' => implode(',', $chunk)]),
+            $chunks,
+            array_keys($chunks),
+        ));
+
         $items = [];
-
-        foreach ($chunks as $chunk) {
-            $detailResponse = Http::withToken($account->access_token)
-                ->get("{$this->baseUrl}/items", [
-                    'ids' => implode(',', $chunk),
-                ]);
-
-            if ($detailResponse->ok()) {
-                $items = array_merge($items, $detailResponse->json());
+        foreach ($chunks as $i => $_) {
+            $res = $responses["chunk_{$i}"] ?? null;
+            if ($res && $res->ok()) {
+                $items = [...$items, ...$res->json()];
             }
         }
 
@@ -504,28 +537,39 @@ class MercadoLibreService
     }
 
     /**
-     * Obtiene una publicación específica por su ID de ML
+     * Obtiene una publicación específica + visitas totales, ambas en PARALELO.
      */
     public function getPublication(string $mlItemId, User $user): array
     {
         $account = $this->getValidAccount($user);
+        $token   = $account->access_token;
+        $base    = $this->baseUrl;
 
-        $response = Http::withToken($account->access_token)
-            ->get("{$this->baseUrl}/items/{$mlItemId}");
+        $responses = Http::pool(fn (Pool $pool) => [
+            $pool->as('item')
+                ->withToken($token)->acceptJson()->timeout(30)
+                ->get("{$base}/items/{$mlItemId}"),
+            $pool->as('visits')
+                ->withToken($token)->acceptJson()->timeout(30)
+                ->get("{$base}/visits/items", ['ids' => $mlItemId]),
+        ]);
 
-        if ($response->failed()) {
+        if ($responses['item']->failed()) {
             throw new Exception('Error al obtener la publicación.', 500);
         }
 
-        return $response->json();
+        $item = $responses['item']->json();
+
+        if ($responses['visits']->ok()) {
+            $item['views'] = $responses['visits']->json()[$mlItemId] ?? 0;
+        }
+
+        return $item;
     }
 
     public function getPublicationPerformance(string $mlItemId, User $user): array
     {
-        $account = $this->getValidAccount($user);
-
-        $response = Http::withToken($account->access_token)
-            ->get("{$this->baseUrl}/item/{$mlItemId}/performance");
+        $response = $this->client($user)->get("/item/{$mlItemId}/performance");
 
         // 404 = performance no generado aún, devolver vacío en vez de error
         if ($response->status() === 404) {
@@ -544,11 +588,9 @@ class MercadoLibreService
      */
     public function uploadPicture(User $user, \Illuminate\Http\UploadedFile $file): array
     {
-        $account = $this->getValidAccount($user);
-
-        $response = Http::withToken($account->access_token)
+        $response = $this->client($user)
             ->attach('file', $file->getContent(), $file->getClientOriginalName())
-            ->post("{$this->baseUrl}/pictures/items/upload");
+            ->post('/pictures/items/upload');
 
         if ($response->failed()) {
             $msg = $response->json('message') ?? 'Error al subir imagen a Mercado Libre.';
@@ -570,6 +612,27 @@ class MercadoLibreService
     // -------------------------------------------------------------------------
     // HELPERS INTERNOS
     // -------------------------------------------------------------------------
+
+    /**
+     * Cliente HTTP pre-configurado para llamadas autenticadas a la API de ML.
+     * Resuelve token + base URL + Accept header. Usar para la mayoría de endpoints.
+     */
+    private function client(User $user): PendingRequest
+    {
+        return $this->clientForAccount($this->getValidAccount($user));
+    }
+
+    /**
+     * Variante de client() cuando ya tenés la cuenta resuelta (evita query extra a DB
+     * cuando además necesitás el ml_user_id de la cuenta).
+     */
+    private function clientForAccount(AccountMercadoLibre $account): PendingRequest
+    {
+        return Http::withToken($account->access_token)
+            ->baseUrl($this->baseUrl)
+            ->acceptJson()
+            ->timeout(30);
+    }
 
     /**
      * Obtiene la cuenta ML del usuario, refrescando el token si está por expirar
