@@ -440,7 +440,7 @@ class MercadoLibreService
 
         if ($response->failed()) {
             $msg = $result['message'] ?? 'Error al actualizar publicación';
-            throw new Exception($msg, $response->status());
+            throw new Exception($msg, $response->json());
         }
 
         return $result;
