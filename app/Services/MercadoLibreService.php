@@ -6,10 +6,13 @@ use App\Models\AccountMercadoLibre;
 use App\Models\Product;
 use App\Models\User;
 use Exception;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 class MercadoLibreService
 {
+    private const PROFILE_CACHE_TTL_SECONDS = 3600; // 1 hora
+
     private string $baseUrl = 'https://api.mercadolibre.com';
     private string $authUrl = 'https://auth.mercadolibre.com.ar/authorization';
     private string $tokenUrl = 'https://api.mercadolibre.com/oauth/token';
@@ -64,6 +67,7 @@ class MercadoLibreService
 
         // Elimina cuenta anterior si existe (solo una cuenta por usuario)
         AccountMercadoLibre::where('user_id', $user->id)->delete();
+        $this->forgetProfileCache($user);
 
         return AccountMercadoLibre::create([
             'user_id'       => $user->id,
@@ -121,24 +125,31 @@ class MercadoLibreService
             'token' => $account->access_token,
         ]);
 
+        $this->forgetProfileCache($user);
         $account->delete();
     }
 
     /**
-     * Obtiene el perfil del usuario en ML
+     * Obtiene el perfil del usuario en ML (cacheado 1 h por usuario).
      */
     public function getProfile(User $user): array
     {
         $account = $this->getValidAccount($user);
 
-        $response = Http::withToken($account->access_token)
-            ->get("{$this->baseUrl}/users/me");
+        return Cache::remember(
+            $this->profileCacheKey($user),
+            self::PROFILE_CACHE_TTL_SECONDS,
+            function () use ($account) {
+                $response = Http::withToken($account->access_token)
+                    ->get("{$this->baseUrl}/users/me");
 
-        if ($response->failed()) {
-            throw new Exception('Error al obtener perfil de Mercado Libre.', 500);
-        }
+                if ($response->failed()) {
+                    throw new Exception('Error al obtener perfil de Mercado Libre.', 500);
+                }
 
-        return $response->json();
+                return $response->json();
+            }
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -576,5 +587,15 @@ class MercadoLibreService
         }
 
         return $account;
+    }
+
+    private function profileCacheKey(User $user): string
+    {
+        return "ml_profile:user:{$user->id}";
+    }
+
+    private function forgetProfileCache(User $user): void
+    {
+        Cache::forget($this->profileCacheKey($user));
     }
 }

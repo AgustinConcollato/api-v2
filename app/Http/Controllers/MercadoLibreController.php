@@ -324,7 +324,7 @@ class MercadoLibreController
     {
         try {
             $request->validate([
-                'file' => 'required|file|mimes:jpg,jpeg,png|max:10240',
+                'file' => 'required|file|mimes:jpg,jpeg,png,webp|max:10240',
             ]);
 
             $result = $this->mlService->uploadPicture($request->user(), $request->file('file'));
