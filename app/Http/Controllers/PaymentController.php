@@ -8,15 +8,18 @@ use Illuminate\Http\Request;
 use App\Services\PaymentService;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Services\OrderService;
 use Illuminate\Validation\ValidationException;
 
 class PaymentController
 {
     protected $paymentService;
+    protected $orderService;
 
-    public function __construct(PaymentService $paymentService)
+    public function __construct(PaymentService $paymentService, OrderService $orderService)
     {
         $this->paymentService = $paymentService;
+        $this->orderService = $orderService;
     }
 
     /**
@@ -70,8 +73,15 @@ class PaymentController
             // 2. LÓGICA DE NEGOCIO (delegada al Servicio)
             $payment = $this->paymentService->processPayment($order, $request->all());
 
-            // 3. RESPUESTA
-            return response()->json($payment, 201);
+            // 3. RESPUESTA — pedido actualizado con pagos frescos
+            $order->refresh();
+            $order->load('payments', 'client', 'details');
+            $order->balance_due = $this->orderService->getPendingBalance($order);
+            
+            return response()->json([
+                'payment' => $payment,
+                'order'   => $order,
+            ], 201);
         } catch (ValidationException $e) {
             return response()->json([$e->errors()], 422);
         } catch (\Exception $e) {

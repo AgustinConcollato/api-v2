@@ -15,7 +15,7 @@ class AnalyticsService
      * @param array $filters
      * @return array
      */
-    public function getOverview(array $filters = []): array
+    public function getOverview(array $filters = [], bool $withComparison = true): array
     {
         $query = Order::query();
 
@@ -23,31 +23,32 @@ class AnalyticsService
         // $query->whereNotIn('status', ['cancelled', 'pending']);
         $query->where('status', '=', 'delivered');
 
-        $isMonthRange = false;
+        $effectiveStart = null;
+        $effectiveEnd   = null;
 
-        // Aplicar filtros de fecha
+        // Aplicar filtros de fecha y registrar el rango efectivo para comparación
         if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+            $effectiveStart = $filters['start_date'];
+            $effectiveEnd   = $filters['end_date'];
             $query->whereBetween('created_at', [
-                $filters['start_date'] . ' 00:00:00',
-                $filters['end_date'] . ' 23:59:59',
+                $effectiveStart . ' 00:00:00',
+                $effectiveEnd   . ' 23:59:59',
             ]);
         } elseif (!empty($filters['range'])) {
-            // Rango rápido
             if ($filters['range'] === 'week') {
+                $effectiveStart = now()->startOfWeek()->toDateString();
+                $effectiveEnd   = now()->endOfWeek()->toDateString();
                 $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
             } elseif ($filters['range'] === 'month') {
-                $isMonthRange = true;
+                $effectiveStart = now()->startOfMonth()->toDateString();
+                $effectiveEnd   = now()->endOfMonth()->toDateString();
                 $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year);
             } elseif ($filters['range'] === 'all') {
-                // no filter
-            } elseif ($filters['range'] === 'custom') {
-                // custom pero sin fechas -> no filtrar (fallback al mes actual)
-                if (empty($filters['start_date']) || empty($filters['end_date'])) {
-                    $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year);
-                }
+                // sin límite — no hay comparación posible
             }
         } else {
-            // Si no hay fechas explícitas ni rango, usar el mes actual por defecto
+            $effectiveStart = now()->startOfMonth()->toDateString();
+            $effectiveEnd   = now()->endOfMonth()->toDateString();
             $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year);
         }
 
@@ -137,6 +138,19 @@ class AnalyticsService
         // Reinversión: 10% de la ganancia antes de reinversión ($profit = revenue - cost - shipping).
         $reinvestmentAmount = $profit * 0.1;
 
+        // Serie temporal: pagos completados por día (ingreso real cobrado)
+        $revenueOverTime = DB::table('payments')
+            ->select(
+                DB::raw('DATE(created_at) as date'),
+                DB::raw('SUM(amount) as revenue'),
+                DB::raw('COUNT(DISTINCT order_id) as orders_count')
+            )
+            ->whereIn('order_id', $orderIds)
+            ->where('status', 'completed')
+            ->groupBy(DB::raw('DATE(created_at)'))
+            ->orderBy('date')
+            ->get();
+
         $result = [
             'orders_count' => $totalOrders,
             'total_revenue' => round($totalRevenue, 2),
@@ -150,17 +164,23 @@ class AnalyticsService
             'top_products' => $topProducts,
             'payments_by_status' => $paymentsByStatus,
             'shipping_cost' => round($shippingCost, 2),
+            'revenue_over_time' => $revenueOverTime,
         ];
 
-        // Si el rango es "month", calcular automáticamente comparación con mes anterior
-        if ($isMonthRange) {
-            $prev = now()->copy()->subMonth();
-            $startPrev = $prev->copy()->startOfMonth()->toDateString();
-            $endPrev = $prev->copy()->endOfMonth()->toDateString();
-            $overviewPreviousMonth = $this->getOverview(['start_date' => $startPrev, 'end_date' => $endPrev]);
+        // Comparación: solo cuando range=month (mes actual vs mes anterior completo)
+        if ($withComparison && !empty($filters['range']) && $filters['range'] === 'month') {
+            $prev      = Carbon::now()->copy()->subMonth();
+            $prevStart = $prev->copy()->startOfMonth()->toDateString();
+            $prevEnd   = $prev->copy()->endOfMonth()->toDateString();
 
-            $result['comparison'] = $this->computeComparison($result, $overviewPreviousMonth);
-            $result['previous_month'] = $overviewPreviousMonth;
+            $overviewPrev = $this->getOverview([
+                'start_date' => $prevStart,
+                'end_date'   => $prevEnd,
+                'client_id'  => $filters['client_id'] ?? null,
+            ], false);
+
+            $result['comparison']       = $this->computeComparison($result, $overviewPrev);
+            $result['comparison_label'] = 'mes anterior';
         }
 
         return $result;
@@ -229,8 +249,8 @@ class AnalyticsService
         $startB = Carbon::create($yearB, $monthB, 1)->startOfMonth()->toDateString();
         $endB = Carbon::create($yearB, $monthB, 1)->endOfMonth()->toDateString();
 
-        $overviewA = $this->getOverview(['start_date' => $startA, 'end_date' => $endA]);
-        $overviewB = $this->getOverview(['start_date' => $startB, 'end_date' => $endB]);
+        $overviewA = $this->getOverview(['start_date' => $startA, 'end_date' => $endA], false);
+        $overviewB = $this->getOverview(['start_date' => $startB, 'end_date' => $endB], false);
 
         // Métricas a comparar
         $metrics = [
