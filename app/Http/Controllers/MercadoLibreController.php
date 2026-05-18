@@ -371,7 +371,7 @@ class MercadoLibreController
     public function updatePublication(Request $request, string $mlItemId)
     {
         try {
-            $data = $request->only(['title', 'price', 'available_quantity', 'listing_type_id', 'attributes', 'tags']);
+            $data = $request->only(['title', 'price', 'available_quantity', 'listing_type_id', 'attributes', 'tags', 'variations']);
             $result = $this->mlService->updatePublication($mlItemId, $data, $request->user());
 
             return response()->json([
