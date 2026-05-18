@@ -446,6 +446,32 @@ class MercadoLibreService
         return $result;
     }
 
+    public function deleteVariation(string $mlItemId, string $variationId, User $user): array
+    {
+        $response = $this->client($user)->delete("/items/{$mlItemId}/variations/{$variationId}");
+
+        $result = $response->json();
+
+        if ($response->failed()) {
+            throw new Exception(json_encode($result), $response->status());
+        }
+
+        return $result;
+    }
+
+    public function addVariation(string $mlItemId, array $data, User $user): array
+    {
+        $response = $this->client($user)->post("/items/{$mlItemId}/variations", $data);
+
+        $result = $response->json();
+
+        if ($response->failed()) {
+            throw new Exception(json_encode($result), $response->status());
+        }
+
+        return $result;
+    }
+
     /**
      * Cambia el tipo de publicación (gold_special ↔ gold_pro) vía POST /items/{id}/listing_type
      */
@@ -548,7 +574,7 @@ class MercadoLibreService
         $responses = Http::pool(fn (Pool $pool) => [
             $pool->as('item')
                 ->withToken($token)->acceptJson()->timeout(30)
-                ->get("{$base}/items/{$mlItemId}"),
+                ->get("{$base}/items/{$mlItemId}", ['include_attributes' => 'all']),
             $pool->as('visits')
                 ->withToken($token)->acceptJson()->timeout(30)
                 ->get("{$base}/visits/items", ['ids' => $mlItemId]),

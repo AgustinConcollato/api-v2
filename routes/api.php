@@ -131,6 +131,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/publications/{mlItemId}/pause', [MercadoLibreController::class, 'pausePublication']);
         Route::post('/publications/{mlItemId}/reactivate', [MercadoLibreController::class, 'reactivatePublication']);
         Route::post('/publications/{mlItemId}/close', [MercadoLibreController::class, 'closePublication']);
+        Route::post('/publications/{mlItemId}/variations', [MercadoLibreController::class, 'addVariation']);
+        Route::delete('/publications/{mlItemId}/variations/{variationId}', [MercadoLibreController::class, 'deleteVariation']);
         Route::get('/publications/{mlItemId}/performance', [MercadoLibreController::class, 'getPublicationPerformance']);
         Route::post('/pictures/upload', [MercadoLibreController::class, 'uploadPicture']);
         Route::put('/publications/{mlItemId}/pictures', [MercadoLibreController::class, 'updatePublicationPictures']);

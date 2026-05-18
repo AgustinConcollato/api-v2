@@ -371,13 +371,43 @@ class MercadoLibreController
     public function updatePublication(Request $request, string $mlItemId)
     {
         try {
-            $data = $request->only(['title', 'price', 'available_quantity', 'listing_type_id', 'attributes', 'tags', 'variations']);
+            $data = $request->only(['title', 'price', 'available_quantity', 'listing_type_id', 'attributes', 'tags', 'variations', 'pictures']);
             $result = $this->mlService->updatePublication($mlItemId, $data, $request->user());
 
             return response()->json([
                 'message' => 'Publicación actualizada.',
                 'ml_item' => $result,
             ], 200);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    /**
+     * DELETE /mercado-libre/publications/{mlItemId}/variations/{variationId}
+     */
+    public function deleteVariation(Request $request, string $mlItemId, string $variationId)
+    {
+        try {
+            $result = $this->mlService->deleteVariation($mlItemId, $variationId, $request->user());
+            return response()->json(['message' => 'Variación eliminada.', 'ml_item' => $result], 200);
+        } catch (\Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
+    }
+
+    /**
+     * POST /mercado-libre/publications/{mlItemId}/variations
+     * Agrega una nueva variación a una publicación existente
+     */
+    public function addVariation(Request $request, string $mlItemId)
+    {
+        try {
+            $data = $request->only(['attribute_combinations', 'price', 'available_quantity', 'picture_ids', 'attributes']);
+            $result = $this->mlService->addVariation($mlItemId, $data, $request->user());
+            return response()->json(['message' => 'Variación agregada.', 'variation' => $result], 201);
         } catch (\Exception $e) {
             $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
             return response()->json(['message' => $e->getMessage()], $code);
