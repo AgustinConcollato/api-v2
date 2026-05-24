@@ -30,6 +30,7 @@ class CategoryStructureSeeder extends Seeder
                 'Bombillas y Filtros' => [
                     ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['Pico de loro', 'Resorte', 'Perita', 'Chata', 'Hexagonal', 'Desarmable']],
                     ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Acero inox', 'Alpaca']],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Termos' => [
                     ['name' => 'Capacidad', 'type' => 'select', 'required' => false, 'options' => ['500ml', '750ml', '1L', '1.2L', '1.4L', '1.5L', '1.9L', '2L']],
@@ -38,45 +39,42 @@ class CategoryStructureSeeder extends Seeder
                 ],
                 'Tapones, Vertedores y Sets Materos' => [
                     ['name' => 'Tipo', 'type' => 'text', 'required' => false],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
             ],
 
-            'Vajilla y Bebidas' => [
-                'Botellas de Acero Térmicas' => [
+            'Vasos, Tazas, Jarras y Botellas' => [
+                'Botellas' => [
                     ['name' => 'Capacidad', 'type' => 'select', 'required' => false, 'options' => ['400ml', '500ml', '600ml', '650ml', '750ml', '800ml', '1000ml', '1500ml']],
                     ['name' => 'Color', 'type' => 'text', 'required' => false],
-                ],
-                'Botellas Plásticas y Deportivas' => [
-                    ['name' => 'Capacidad', 'type' => 'select', 'required' => false, 'options' => ['400ml', '500ml', '600ml', '750ml', '800ml', '1000ml', '1100ml']],
                     ['name' => 'Diseño', 'type' => 'text', 'required' => false],
                 ],
-                'Vasos y Copas de Vidrio' => [
+                'Vasos y Copas' => [
+                    ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Vidrio', 'Acero', 'Plástico', 'Acrílico']],
                     ['name' => 'Capacidad (ml)', 'type' => 'number', 'required' => false],
                     ['name' => 'Cantidad en pack', 'type' => 'number', 'required' => false],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
+                    ['name' => 'Infantil', 'type' => 'boolean', 'required' => false],
+                    ['name' => 'Personaje / Diseño', 'type' => 'text', 'required' => false],
                 ],
                 'Tazas y Jarros' => [
                     ['name' => 'Capacidad (ml)', 'type' => 'number', 'required' => false],
                     ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Cerámica', 'Vidrio', 'Acero', 'Aluminio', 'Plástico', 'Enlozado']],
                     ['name' => 'Color / Diseño', 'type' => 'text', 'required' => false],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Jarras' => [
                     ['name' => 'Capacidad (ml)', 'type' => 'number', 'required' => false],
                     ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Vidrio', 'Plástico', 'Acero']],
-                ],
-                'Vasos Plásticos e Infantiles' => [
-                    ['name' => 'Capacidad (ml)', 'type' => 'number', 'required' => false],
-                    ['name' => 'Personaje / Diseño', 'type' => 'text', 'required' => false],
-                ],
-                'Vasos y Vasitos de Acero' => [
-                    ['name' => 'Capacidad (ml)', 'type' => 'number', 'required' => false],
-                    ['name' => 'Color', 'type' => 'text', 'required' => false],
-                ],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
+                ]
             ],
 
             'Cocina' => [
                 'Utensilios de Cocina' => [
                     ['name' => 'Tipo', 'type' => 'text', 'required' => false],
                     ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Acero inox', 'Plástico', 'Madera', 'Bamboo', 'Silicona', 'Aluminio']],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Moldes y Horneado' => [
                     ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Teflón', 'Silicona', 'Aluminio', 'Hojalata']],
@@ -87,10 +85,12 @@ class CategoryStructureSeeder extends Seeder
                     ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['Cacerola', 'Sartén', 'Wok', 'Asadera', 'Tartera', 'Flanera', 'Budinera']],
                     ['name' => 'Diámetro (cm)', 'type' => 'number', 'required' => false],
                     ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Aluminio', 'Antiadherente', 'Cerámica', 'Enlozada', 'Acero inox']],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Tablas de Picar y Cubiertos' => [
                     ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Plástico', 'Madera', 'Bamboo', 'Acero inox']],
                     ['name' => 'Tamaño', 'type' => 'text', 'required' => false],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Fuentes y Ensaladeras' => [
                     ['name' => 'Capacidad (L)', 'type' => 'number', 'required' => false],
@@ -107,6 +107,7 @@ class CategoryStructureSeeder extends Seeder
                     ['name' => 'Capacidad (L)', 'type' => 'number', 'required' => false],
                     ['name' => 'Forma', 'type' => 'select', 'required' => false, 'options' => ['Redondo', 'Cuadrado', 'Rectangular']],
                     ['name' => 'Color / Diseño', 'type' => 'text', 'required' => false],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Canastos y Cestos Organizadores' => [
                     ['name' => 'Capacidad (L)', 'type' => 'number', 'required' => false],
@@ -114,6 +115,7 @@ class CategoryStructureSeeder extends Seeder
                 ],
                 'Cestos de Residuos' => [
                     ['name' => 'Capacidad (L)', 'type' => 'number', 'required' => false],
+                    ['name' => 'Tipo de tapa', 'type' => 'select', 'required' => false, 'options' => ['Vaiven', 'Pedal', 'Plana']],
                 ],
                 'Baldes y Fuentones' => [
                     ['name' => 'Capacidad (L)', 'type' => 'number', 'required' => false],
@@ -137,21 +139,24 @@ class CategoryStructureSeeder extends Seeder
                     ['name' => 'Tamaño (cm)', 'type' => 'number', 'required' => false],
                 ],
                 'Muñecas y Figuras' => [
-                    ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['TINY', 'Labubu', 'Bebote', 'Dinosaurio', 'Mini', 'Animales']],
+                    ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['Labubu', 'Bebote', 'Dinosaurio', 'Mini', 'Animales']],
                     ['name' => 'Tamaño (cm)', 'type' => 'number', 'required' => false],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Juegos de Mesa y Cartas' => [
                     ['name' => 'Tipo', 'type' => 'text', 'required' => false],
-                    ['name' => 'Jugadores', 'type' => 'text', 'required' => false],
+                    ['name' => 'Cant. Jugadores', 'type' => 'text', 'required' => false],
                     ['name' => 'Edad mínima', 'type' => 'number', 'required' => false],
                 ],
                 'Arte, Bijouterie y Maquillaje Infantil' => [
                     ['name' => 'Tipo', 'type' => 'text', 'required' => false],
                     ['name' => 'Personaje / Diseño', 'type' => 'text', 'required' => false],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Burbujeros y Juegos de Exterior' => [
                     ['name' => 'Tipo', 'type' => 'text', 'required' => false],
                     ['name' => 'Personaje / Diseño', 'type' => 'text', 'required' => false],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Aprendizaje y Construcción' => [
                     ['name' => 'Piezas', 'type' => 'number', 'required' => false],
@@ -161,6 +166,7 @@ class CategoryStructureSeeder extends Seeder
                     ['name' => 'Piezas', 'type' => 'number', 'required' => false],
                     ['name' => 'Tamaño', 'type' => 'text', 'required' => false],
                     ['name' => 'Temática', 'type' => 'text', 'required' => false],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
             ],
 
@@ -169,12 +175,14 @@ class CategoryStructureSeeder extends Seeder
                     ['name' => 'Temática / Personaje', 'type' => 'text', 'required' => false],
                     ['name' => 'Páginas', 'type' => 'number', 'required' => false],
                     ['name' => 'Tamaño', 'type' => 'text', 'required' => false],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Cuadernos, Anotadores y Agendas' => [
                     ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['Cuaderno', 'Anotador', 'Agenda', 'Diario']],
                     ['name' => 'Tamaño', 'type' => 'text', 'required' => false],
                     ['name' => 'Hojas', 'type' => 'number', 'required' => false],
                     ['name' => 'Diseño', 'type' => 'text', 'required' => false],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Lapiceras, Marcadores y Resaltadores' => [
                     ['name' => 'Tipo', 'type' => 'text', 'required' => false],
@@ -233,9 +241,11 @@ class CategoryStructureSeeder extends Seeder
                 'Accesorios de Cabello' => [
                     ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['Colita', 'Hebilla', 'Broche', 'Set', 'Corona']],
                     ['name' => 'Diseño', 'type' => 'text', 'required' => false],
+                    ['name' => 'Color', 'type' => 'text', 'required' => false],
                 ],
                 'Cinturones' => [
                     ['name' => 'Talle', 'type' => 'text', 'required' => false],
+                    ['name' => 'Color', 'type' => 'text', 'required' => false],
                     ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Cuero', 'Cuerina']],
                 ],
             ],
@@ -246,7 +256,7 @@ class CategoryStructureSeeder extends Seeder
                     ['name' => 'Diseño', 'type' => 'text', 'required' => false],
                 ],
                 'Textiles del Hogar' => [
-                    ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['Toalla', 'Toallón', 'Mantel', 'Alfombra', 'Cortina']],
+                    ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['Toalla', 'Toallón', 'Repasador', 'Mantel', 'Alfombra', 'Cortina']],
                     ['name' => 'Tamaño', 'type' => 'text', 'required' => false],
                     ['name' => 'Color / Diseño', 'type' => 'text', 'required' => false],
                 ],
@@ -264,10 +274,13 @@ class CategoryStructureSeeder extends Seeder
                 'Parlantes Bluetooth' => [
                     ['name' => 'Potencia (W)', 'type' => 'number', 'required' => false],
                     ['name' => 'Color', 'type' => 'text', 'required' => false],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
-                'Auriculares y Cascos' => [
-                    ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['Vincha', 'In-ear', 'Over-ear']],
+                'Auriculares' => [
+                    ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['Vincha', 'In-ear']],
+                    ['name' => 'Inalámbrico', 'type' => 'boolean', 'required' => false],
                     ['name' => 'Color', 'type' => 'text', 'required' => false],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Cargadores y Cables' => [
                     ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['Micro USB', 'Tipo C', 'Auxiliar 3.5mm', 'Doble USB']],
@@ -275,7 +288,7 @@ class CategoryStructureSeeder extends Seeder
                     ['name' => 'Longitud (m)', 'type' => 'number', 'required' => false],
                 ],
                 'Relojes' => [
-                    ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['Despertador', 'Pared']],
+                    ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['Despertador', 'Pared', 'Smartwatch']],
                     ['name' => 'Diseño', 'type' => 'text', 'required' => false],
                 ],
                 'Lámparas LED y Nocturnas' => [
