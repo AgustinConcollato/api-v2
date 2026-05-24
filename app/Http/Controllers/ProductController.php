@@ -66,7 +66,6 @@ class ProductController
 
         try {
             $validated = $request->validate($rules, $params);
-            $validated['sku'] = $this->productService->generateUniqueSku($validated);
             $validated['status'] = ProductStatus::Incomplete;
             $validated['stock'] = $validated['stock'] ?? 0;
 
@@ -74,6 +73,7 @@ class ProductController
 
                 $product = $this->productService->createProduct($validated);
 
+                // no sirve acá
                 if (isset($validated['categories'])) {
                     $this->productService->syncCategories($product, $validated['categories']);
                 }
@@ -84,6 +84,7 @@ class ProductController
                     $this->productService->processAndAttachImages($product, $files, $positions);
                 }
 
+                // no sirve acá
                 if (!empty($validated['attribute_values'])) {
                     foreach ($validated['attribute_values'] as $av) {
                         $product->attributeValues()->create([
@@ -215,28 +216,9 @@ class ProductController
         try {
             $validated = $request->validate($rules, $params);
 
-            if ($product->categories()->exists()) {
-                throw ValidationException::withMessages([
-                    'categories' => ['La categoría de un producto no puede modificarse una vez asignada.']
-                ]);
-            }
+            $productWithCategories = $this->productService->syncCategories($product, $validated['categories']);
 
-            $categories = Category::whereIn('id', $validated['categories'])->get();
-            $parentIds = $categories->pluck('parent_id');
-            if ($parentIds->count() !== $parentIds->unique()->count()) {
-                throw ValidationException::withMessages([
-                    'categories' => ['No se pueden asignar dos categorías del mismo nivel al mismo tiempo.']
-                ]);
-            }
-
-            $product = DB::transaction(function () use ($validated, $product) {
-                $this->productService->syncCategories($product, $validated['categories']);
-                return $product;
-            });
-
-            $product->categories;
-
-            return response()->json($product, 200);
+            return response()->json($productWithCategories, 200);
         } catch (ValidationException $e) {
             return response()->json([$e->errors()], 422);
         } catch (\Exception $e) {

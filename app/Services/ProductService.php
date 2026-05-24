@@ -161,7 +161,7 @@ class ProductService
         if (isset($filters['stock_min'])) {
             $query->where(function ($q) use ($filters) {
                 $q->where('stock', '>=', $filters['stock_min'])
-                  ->orWhereHas('variants', fn($vq) => $vq->where('stock', '>=', $filters['stock_min']));
+                    ->orWhereHas('variants', fn($vq) => $vq->where('stock', '>=', $filters['stock_min']));
             });
         }
         if (isset($filters['stock_max'])) {
@@ -356,11 +356,29 @@ class ProductService
      * Asocia/sincroniza categorías con el producto.
      * @param Product $product
      * @param array $categoryIds Array de IDs de categorías.
-     * @return void
      */
-    public function syncCategories(Product $product, array $categoryIds): void
+    public function syncCategories(Product $product, array $categoryIds)
     {
+        if ($product->categories()->exists()) {
+            throw ValidationException::withMessages([
+                'categories' => ['La categoría de un producto no puede modificarse una vez asignada.']
+            ]);
+        }
+
+        $product['sku'] = $this->generateUniqueSku(end($categoryIds), $product);
+        $product->save();
+
+        $categories = Category::whereIn('id', $categoryIds)->get();
+        $parentIds = $categories->pluck('parent_id');
+
+        if ($parentIds->count() !== $parentIds->unique()->count()) {
+            throw ValidationException::withMessages([
+                'categories' => ['No se pueden asignar dos categorías del mismo nivel al mismo tiempo.']
+            ]);
+        }
+
         $product->categories()->sync($categoryIds);
+        return $product->categories;
     }
 
     /**
@@ -446,19 +464,17 @@ class ProductService
 
     /**
      * Genera un SKU único basado en el nombre y las categorías del producto.
-     * @param array $data Los datos validados del request.
+     * @param int $categoryId
+     * @param Product $product
      * @return string
      */
-    public function generateUniqueSku(array $data): string
+    public function generateUniqueSku(int $categoryId, Product $product): string
     {
-        // 1. Obtener la categoría principal (usaremos la primera ID del array)
-        $firstCategoryId = $data['categories'][0] ?? null;
-
         // 2. Intentar buscar la categoría para obtener un prefijo descriptivo
         $categoryPrefix = 'PRD'; // Prefijo por defecto
 
-        if ($firstCategoryId) {
-            $category = Category::find($firstCategoryId);
+        if ($categoryId) {
+            $category = Category::find($categoryId);
             if ($category) {
                 // Genera un prefijo corto de la categoría (ej: las primeras 3 letras)
                 $categoryPrefix = strtoupper(Str::slug(substr($category->name, 0, 3)));
@@ -466,7 +482,7 @@ class ProductService
         }
 
         // 3. Obtener prefijo del nombre del producto
-        $namePrefix = strtoupper(Str::slug(substr($data['name'], 0, 3)));
+        $namePrefix = strtoupper(Str::slug(substr($product['name'], 0, 3)));
 
         do {
             // 4. Generar un sufijo único para garantizar la exclusividad
