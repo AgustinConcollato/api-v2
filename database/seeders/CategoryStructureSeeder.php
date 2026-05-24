@@ -38,16 +38,20 @@ class CategoryStructureSeeder extends Seeder
                     ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Tapones, Vertedores y Sets Materos' => [
+                    ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Plástico', 'Lata']],
                     ['name' => 'Tipo', 'type' => 'text', 'required' => false],
                     ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
             ],
 
-            'Vasos, Tazas, Jarras y Botellas' => [
-                'Botellas' => [
-                    ['name' => 'Capacidad', 'type' => 'select', 'required' => false, 'options' => ['400ml', '500ml', '600ml', '650ml', '750ml', '800ml', '1000ml', '1500ml']],
-                    ['name' => 'Color', 'type' => 'text', 'required' => false],
-                    ['name' => 'Diseño', 'type' => 'text', 'required' => false],
+            'Mesa y Vajilla' => [ // Nuevo nombre del Padre
+                'Platos y Bowls' => [ // Subcategoría dedicada
+                    ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['Playo', 'Hondo', 'Postre', 'Bowl', 'Copetinero']],
+                    ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Porcelana', 'Cerámica', 'Vidrio', 'Plástico', 'Melamina', 'Vidrio Templado']],
+                    ['name' => 'Diámetro (cm)', 'type' => 'number', 'required' => false],
+                    ['name' => 'Color / Diseño', 'type' => 'text', 'required' => false],
+                    ['name' => 'Cantidad en pack', 'type' => 'number', 'required' => false],
+                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Vasos y Copas' => [
                     ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Vidrio', 'Acero', 'Plástico', 'Acrílico']],
@@ -56,6 +60,7 @@ class CategoryStructureSeeder extends Seeder
                     ['name' => 'Marca', 'type' => 'text', 'required' => false],
                     ['name' => 'Infantil', 'type' => 'boolean', 'required' => false],
                     ['name' => 'Personaje / Diseño', 'type' => 'text', 'required' => false],
+                    ['name' => 'Sorbete', 'type' => 'boolean', 'required' => false],
                 ],
                 'Tazas y Jarros' => [
                     ['name' => 'Capacidad (ml)', 'type' => 'number', 'required' => false],
@@ -70,10 +75,21 @@ class CategoryStructureSeeder extends Seeder
                 ]
             ],
 
+            'Botellas y Térmicos' => [
+                ['name' => 'Capacidad', 'type' => 'select', 'required' => false, 'options' => ['400ml', '500ml', '600ml', '650ml', '750ml', '800ml', '1000ml', '1500ml']],
+                ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Acero', 'Plástico', 'Vidrio']],
+                ['name' => 'Térmico', 'type' => 'boolean', 'required' => false],
+                ['name' => 'Color', 'type' => 'text', 'required' => false],
+                ['name' => 'Diseño', 'type' => 'text', 'required' => false],
+                ['name' => 'Sorbete', 'type' => 'boolean', 'required' => false],
+                ['name' => 'Pico', 'type' => 'boolean', 'required' => false],
+            ],
+
             'Cocina' => [
-                'Utensilios de Cocina' => [
+                'Utensilios de Cocina, Tablas de Picar y Cubiertos' => [
                     ['name' => 'Tipo', 'type' => 'text', 'required' => false],
                     ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Acero inox', 'Plástico', 'Madera', 'Bamboo', 'Silicona', 'Aluminio']],
+                    ['name' => 'Tamaño', 'type' => 'text', 'required' => false],
                     ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
                 'Moldes y Horneado' => [
@@ -87,14 +103,10 @@ class CategoryStructureSeeder extends Seeder
                     ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Aluminio', 'Antiadherente', 'Cerámica', 'Enlozada', 'Acero inox']],
                     ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
-                'Tablas de Picar y Cubiertos' => [
-                    ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Plástico', 'Madera', 'Bamboo', 'Acero inox']],
-                    ['name' => 'Tamaño', 'type' => 'text', 'required' => false],
-                    ['name' => 'Marca', 'type' => 'text', 'required' => false],
-                ],
                 'Fuentes y Ensaladeras' => [
                     ['name' => 'Capacidad (L)', 'type' => 'number', 'required' => false],
                     ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Vidrio', 'Plástico', 'Cerámica', 'Acero inox']],
+                    ['name' => 'Color', 'type' => 'text', 'required' => false],
                 ],
                 'Pequeños Electrodomésticos' => [
                     ['name' => 'Tipo', 'type' => 'text', 'required' => false],
@@ -112,14 +124,6 @@ class CategoryStructureSeeder extends Seeder
                 'Canastos y Cestos Organizadores' => [
                     ['name' => 'Capacidad (L)', 'type' => 'number', 'required' => false],
                     ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Ratan', 'Tela', 'Plástico', 'Yute', 'Metal', 'Cromado']],
-                ],
-                'Cestos de Residuos' => [
-                    ['name' => 'Capacidad (L)', 'type' => 'number', 'required' => false],
-                    ['name' => 'Tipo de tapa', 'type' => 'select', 'required' => false, 'options' => ['Vaiven', 'Pedal', 'Plana']],
-                ],
-                'Baldes y Fuentones' => [
-                    ['name' => 'Capacidad (L)', 'type' => 'number', 'required' => false],
-                    ['name' => 'Color', 'type' => 'text', 'required' => false],
                 ],
                 'Tarros y Dispensers' => [
                     ['name' => 'Capacidad', 'type' => 'text', 'required' => false],
@@ -158,12 +162,9 @@ class CategoryStructureSeeder extends Seeder
                     ['name' => 'Personaje / Diseño', 'type' => 'text', 'required' => false],
                     ['name' => 'Marca', 'type' => 'text', 'required' => false],
                 ],
-                'Aprendizaje y Construcción' => [
+                'Aprendizaje, Rompecabezas y Construcción' => [
                     ['name' => 'Piezas', 'type' => 'number', 'required' => false],
                     ['name' => 'Edad recomendada', 'type' => 'text', 'required' => false],
-                ],
-                'Rompecabezas' => [
-                    ['name' => 'Piezas', 'type' => 'number', 'required' => false],
                     ['name' => 'Tamaño', 'type' => 'text', 'required' => false],
                     ['name' => 'Temática', 'type' => 'text', 'required' => false],
                     ['name' => 'Marca', 'type' => 'text', 'required' => false],
@@ -212,9 +213,6 @@ class CategoryStructureSeeder extends Seeder
                 'Cuadros, Láminas y Portaretratos' => [
                     ['name' => 'Tamaño', 'type' => 'text', 'required' => false],
                     ['name' => 'Temática', 'type' => 'text', 'required' => false],
-                ],
-                'Lámparas Decorativas' => [
-                    ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['LED', 'Sal', 'Dino', 'Capibara', 'Colgante', 'Farol']],
                 ],
             ],
 
@@ -268,6 +266,14 @@ class CategoryStructureSeeder extends Seeder
                     ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Plástico', 'Metal', 'Madera', 'Felpa']],
                     ['name' => 'Cantidad', 'type' => 'number', 'required' => false],
                 ],
+                'Cestos de Residuos' => [
+                    ['name' => 'Capacidad (L)', 'type' => 'number', 'required' => false],
+                    ['name' => 'Tipo de tapa', 'type' => 'select', 'required' => false, 'options' => ['Vaiven', 'Pedal', 'Plana']],
+                ],
+                'Baldes y Fuentones' => [
+                    ['name' => 'Capacidad (L)', 'type' => 'number', 'required' =>    false],
+                    ['name' => 'Color', 'type' => 'text', 'required' => false],
+                ],
             ],
 
             'Electrónica y Tecnología' => [
@@ -292,7 +298,8 @@ class CategoryStructureSeeder extends Seeder
                     ['name' => 'Diseño', 'type' => 'text', 'required' => false],
                 ],
                 'Lámparas LED y Nocturnas' => [
-                    ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['LED', 'Sal', 'Nocturna', 'Colgante', 'Solar']],
+                    ['name' => 'Tipo', 'type' => 'select', 'required' => false, 'options' => ['LED', 'Sal', 'Nocturna', 'Colgante', 'Solar', 'Farol']],
+                    ['name' => 'Diseño', 'type' => 'text', 'required' => false],
                 ],
                 'Electrodomésticos' => [
                     ['name' => 'Tipo', 'type' => 'text', 'required' => false],
