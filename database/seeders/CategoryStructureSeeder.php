@@ -76,13 +76,18 @@ class CategoryStructureSeeder extends Seeder
             ],
 
             'Botellas y Térmicos' => [
-                ['name' => 'Capacidad', 'type' => 'select', 'required' => false, 'options' => ['400ml', '500ml', '600ml', '650ml', '750ml', '800ml', '1000ml', '1500ml']],
-                ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Acero', 'Plástico', 'Vidrio']],
-                ['name' => 'Térmico', 'type' => 'boolean', 'required' => false],
-                ['name' => 'Color', 'type' => 'text', 'required' => false],
-                ['name' => 'Diseño', 'type' => 'text', 'required' => false],
-                ['name' => 'Sorbete', 'type' => 'boolean', 'required' => false],
-                ['name' => 'Pico', 'type' => 'boolean', 'required' => false],
+                'Botellas Deportivas y Escolares' => [
+                    ['name' => 'Capacidad', 'type' => 'select', 'required' => false, 'options' => ['400ml', '500ml', '600ml', '650ml', '750ml', '800ml', '1000ml', '1500ml']],
+                    ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Acero', 'Plástico', 'Vidrio']],
+                    ['name' => 'Térmico', 'type' => 'boolean', 'required' => false],
+                    ['name' => 'Color / Diseño', 'type' => 'text', 'required' => false],
+                    ['name' => 'Tipo de Pico', 'type' => 'select', 'required' => false, 'options' => ['Con Sorbete', 'Pico Deportivo', 'A Rosca']],
+                ],
+                'Vasos y Jarros Térmicos' => [ // Especial para el café, la oficina o el auto
+                    ['name' => 'Capacidad', 'type' => 'select', 'required' => false, 'options' => ['350ml', '400ml', '500ml', '600ml']],
+                    ['name' => 'Material', 'type' => 'select', 'required' => false, 'options' => ['Acero', 'Plástico']],
+                    ['name' => 'Color / Diseño', 'type' => 'text', 'required' => false],
+                ],
             ],
 
             'Cocina' => [
