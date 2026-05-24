@@ -365,8 +365,11 @@ class ProductService
             ]);
         }
 
-        $product['sku'] = $this->generateUniqueSku(end($categoryIds), $product);
-        $product->save();
+        if (empty($product->sku)) {
+            $categoryId = end($categoryIds);
+            $product->sku = $this->generateUniqueSku($categoryId, $product);
+            $product->save();
+        }
 
         $categories = Category::whereIn('id', $categoryIds)->get();
         $parentIds = $categories->pluck('parent_id');
@@ -377,8 +380,9 @@ class ProductService
             ]);
         }
 
-        $product->categories()->sync($categoryIds);
-        return $product->categories;
+        $product->categories()->sync($categoryIds);        
+        $product->categories;
+        return $product;
     }
 
     /**
@@ -402,7 +406,8 @@ class ProductService
     /**
      * Procesa, guarda y adjunta las imágenes al producto (con miniaturas) usando GD nativo.
      * @param Product $product
-     * @param array $imageItems Array de objetos { file: UploadedFile, position: int }
+     * @param array $files 
+     * @param array $imagePositions 
      * @return void
      */
     public function processAndAttachImages(Product $product, array $files, array $imagePositions): void
@@ -507,7 +512,7 @@ class ProductService
      */
     public function getProductByBarcode(string $barcode)
     {
-        $barcodeEntry = \App\Models\ProductBarcode::where('barcode', $barcode)->first();
+        $barcodeEntry = ProductBarcode::where('barcode', $barcode)->first();
 
         if (!$barcodeEntry) {
             throw new \Exception("No se encuentra producto para el código: {$barcode}", 404);
@@ -683,7 +688,6 @@ class ProductService
      * @param Product $product El modelo de Producto al que asociar.
      * @param string $barcode El código de barras a asociar.
      * @param bool $isPrimary Indica si debe ser el código primario.
-     * @param int|null $supplierId ID del proveedor (opcional).
      * @return ProductBarcode
      * @throws ValidationException Si el código de barras ya existe en el sistema.
      */
@@ -788,7 +792,6 @@ class ProductService
      *
      * @param \App\Models\Product $product Instancia del producto.
      * @param array $priceLists Array de listas de precios con sus IDs y precios.
-     * @param array $suppliers Array de proveedores con sus IDs y precios de compra.
      * @return \App\Models\Product
      */
     public function syncPricesAndSuppliers(Product $product, array $priceLists): Product
