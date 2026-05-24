@@ -9,6 +9,7 @@ use App\Enums\PaymentStatus;
 use App\Models\Order;
 use App\Models\OrderDetail;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Promotion;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -30,11 +31,6 @@ class OrderService
         ]);
     }
 
-    /**
-     * Summary of searchOrders
-     * @param array $params
-     * @return \Illuminate\Pagination\LengthAwarePaginator
-     */
     public function searchOrders(array $data)
     {
         $query = Order::with(['client', 'payments', 'details']);
@@ -47,6 +43,14 @@ class OrderService
         // Filtro por Cliente
         $query->when(isset($data['client_id']), function ($q) use ($data) {
             $q->where('client_id', $data['client_id']);
+        });
+
+        // Filtro por Deuda Pendiente
+        $query->when(!empty($data['with_debt']), function ($q) {
+            $q->whereRaw(
+                'final_total_amount > COALESCE((SELECT SUM(amount) FROM payments WHERE payments.order_id = orders.id AND payments.status = ?), 0)',
+                ['completed']
+            );
         });
 
         // Filtro por Fechas (Rango manual)
@@ -101,46 +105,51 @@ class OrderService
                 throw new \Exception("Producto no encontrado.");
             }
 
+            $variantId = $item['variant_id'] ?? null;
+            $variant = $variantId ? ProductVariant::find($variantId) : null;
+
+            if ($variantId && !$variant) {
+                throw new \Exception("Variante no encontrada.");
+            }
+
             if ($order->status !== OrderStatus::Processing) {
                 throw ValidationException::withMessages([
                     'status' => ["El pedido no esta en preparación, no se pueden agregar más productos."],
                 ]);
             }
 
-            // --- BÚSQUEDA DEL DETALLE EXISTENTE ---
-            // Intentamos encontrar un detalle para este producto en la orden
-            $detail = $order->details()->where('product_id', $product->id)->first();
+            // Buscar detalle existente: si hay variante, distinguir por variant_id
+            $detail = $order->details()
+                ->where('product_id', $product->id)
+                ->where('variant_id', $variantId)
+                ->first();
 
-            // 1. Validar Stock (ahora se valida el stock restante después de la potencial suma)
-            // La nueva cantidad será la cantidad actual del item + la cantidad que ya existe en el detalle (si existe)
             $quantityToAdd = $item['quantity'];
             $currentDetailQuantity = $detail ? $detail->quantity : 0;
             $newTotalQuantity = $currentDetailQuantity + $quantityToAdd;
 
-            if ($product->stock < $quantityToAdd) {
-                // La validación de stock debe hacerse sobre la cantidad NUEVA que se intenta agregar
+            // Validar stock: usar variante si corresponde
+            $availableStock = $variant ? $variant->stock : $product->stock;
+            if ($availableStock < $quantityToAdd) {
                 throw ValidationException::withMessages([
-                    'quantity' => ["Stock insuficiente. Disponible: {$product->stock}."],
+                    'quantity' => ["Stock insuficiente. Disponible: {$availableStock}."],
                 ]);
             }
 
-            // --- 2. CREAR/ACTUALIZAR DETALLE ---
+            // Crear o actualizar detalle
             if ($detail) {
-                // El producto ya existe, solo sumamos la cantidad
                 $detail->quantity = $newTotalQuantity;
-
                 $detail->unit_price = $item['unit_price'];
                 $detail->purchase_price = $item['purchase_price'];
             } else {
-                // El producto NO existe, creamos un nuevo detalle
                 $detail = $order->details()->create([
                     'product_id' => $product->id,
+                    'variant_id' => $variantId,
                     'quantity' => $quantityToAdd,
                     'purchase_price' => $item['purchase_price'],
                     'unit_price' => $item['unit_price'],
                     'discount_percentage' => 0.00,
                     'discount_fixed_amount' => 0.00,
-                    // Los campos de subtotal se calcularán y guardarán más abajo
                     'subtotal' => 0,
                     'subtotal_with_discount' => 0,
                 ]);
@@ -170,10 +179,13 @@ class OrderService
             $detail->save(); // Guardar el detalle (actualizado o recién creado)
 
             // --- 5. AJUSTAR STOCK ---
-            // Solo restamos la cantidad que SE AGREGÓ AHORA ($quantityToAdd), 
-            // ya que el stock de las unidades que ya estaban en el pedido ya fue restado antes.
-            $product->stock -= $quantityToAdd;
-            $product->save();
+            if ($variant) {
+                $variant->stock -= $quantityToAdd;
+                $variant->save();
+            } else {
+                $product->stock -= $quantityToAdd;
+                $product->save();
+            }
 
             // --- 6. RECALCULAR TOTALES DEL PEDIDO ---
             $this->calculateOrderTotals($order);
@@ -199,7 +211,9 @@ class OrderService
                 ]);
             }
             // 1. DEVOLVER STOCK
-            if ($product) {
+            if ($detail->variant_id && $detail->variant) {
+                $detail->variant->increment('stock', $detail->quantity);
+            } elseif ($product) {
                 $product->stock += $detail->quantity;
                 $product->save();
             }
@@ -254,12 +268,16 @@ class OrderService
             }
         }
 
-        // si se modifica el esta a "cancelled", se debe devolver el stock de todos los productos
+        // si se modifica el estado a "cancelled", devolver stock
         if (isset($data['status']) && $data['status'] === 'cancelled' && $order->status !== 'cancelled') {
             foreach ($order->details as $detail) {
-                $product = Product::find($detail->product_id);
-                if ($product) {
-                    $product->increment('stock', $detail->quantity);
+                if ($detail->variant_id && $detail->variant) {
+                    $detail->variant->increment('stock', $detail->quantity);
+                } else {
+                    $product = Product::find($detail->product_id);
+                    if ($product) {
+                        $product->increment('stock', $detail->quantity);
+                    }
                 }
             }
         }
@@ -305,10 +323,12 @@ class OrderService
             $quantityDifference = $newQuantity - $currentQuantity; // Positivo si se suma, negativo si se resta
 
             if ($quantityDifference > 0) {
-                // Si se está aumentando la cantidad, validar el stock disponible para la diferencia
-                if ($product->stock < $quantityDifference) {
+                $availableStock = ($detail->variant_id && $detail->variant)
+                    ? $detail->variant->stock
+                    : $product->stock;
+                if ($availableStock < $quantityDifference) {
                     throw ValidationException::withMessages([
-                        'quantity' => ["Stock insuficiente para aumentar la cantidad. Disponible: {$product->stock}."],
+                        'quantity' => ["Stock insuficiente para aumentar la cantidad. Disponible: {$availableStock}."],
                     ]);
                 }
             }
@@ -382,8 +402,11 @@ class OrderService
             // Guardar todos los cambios del detalle
             $detail->save();
 
-            // 6. AJUSTAR STOCK DEL PRODUCTO
-            if ($product) {
+            // 6. AJUSTAR STOCK (variante si tiene, producto si no)
+            if ($detail->variant_id && $detail->variant) {
+                $detail->variant->stock -= $quantityDifference;
+                $detail->variant->save();
+            } elseif ($product) {
                 $product->stock -= $quantityDifference;
                 $product->save();
             }

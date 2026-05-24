@@ -3,13 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ProductStatus;
+use App\Models\Category;
 use App\Models\Product;
-use App\Models\ProductBarcode;
 use App\Services\ProductService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use Barryvdh\DomPDF\Facade\Pdf;
 
 class ProductController
 {
@@ -25,7 +24,7 @@ class ProductController
         $rules = [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'stock' => 'required|integer|min:0',
+            'stock' => 'nullable|integer|min:0',
 
             // 1. Imágenes (asumo subida de archivos)
             // Permite múltiples archivos, cada uno debe ser una imagen válida y no exceder 2MB.
@@ -35,10 +34,14 @@ class ProductController
             'image_positions' => 'nullable|array',
             'image_positions.*' => 'required|integer|min:0',
 
-            // 2. Categorías (Many-to-Many)
-            // Debe ser un array y cada elemento debe ser un ID válido en la tabla 'categories'.
-            'categories' => 'required|array',
+            // 2. Categorías (Many-to-Many) — opcional en creación, se sincronizan en step 2
+            'categories' => 'nullable|array',
             'categories.*' => 'exists:categories,id',
+
+            // 3. Atributos de categoría (opcional)
+            'attribute_values' => 'nullable|array',
+            'attribute_values.*.category_attribute_id' => 'required|integer|exists:category_attributes,id',
+            'attribute_values.*.value' => 'required|string|max:255',
         ];
 
         $params = [
@@ -65,6 +68,7 @@ class ProductController
             $validated = $request->validate($rules, $params);
             $validated['sku'] = $this->productService->generateUniqueSku($validated);
             $validated['status'] = ProductStatus::Incomplete;
+            $validated['stock'] = $validated['stock'] ?? 0;
 
             $product = DB::transaction(function () use ($validated, $request) {
 
@@ -75,14 +79,18 @@ class ProductController
                 }
 
                 if ($request->hasFile('images')) {
-                    // $files es un array de objetos UploadedFile
                     $files = $request->file('images');
-
-                    // $positions es un array de enteros
                     $positions = $validated['image_positions'] ?? [];
-
-                    // Enviamos los archivos Y sus posiciones al servicio
                     $this->productService->processAndAttachImages($product, $files, $positions);
+                }
+
+                if (!empty($validated['attribute_values'])) {
+                    foreach ($validated['attribute_values'] as $av) {
+                        $product->attributeValues()->create([
+                            'category_attribute_id' => $av['category_attribute_id'],
+                            'value' => $av['value'],
+                        ]);
+                    }
                 }
 
                 return $product;
@@ -127,7 +135,7 @@ class ProductController
         try {
             $validated = $request->validate($rules, $params);
 
-            $product = DB::transaction(function () use ($validated, $request, $product) {
+            $product = DB::transaction(function () use ($validated, $product) {
 
                 if (isset($validated['suppliers'])) {
                     $this->productService->syncSuppliers($product, $validated['suppliers']);
@@ -140,11 +148,7 @@ class ProductController
                 return $product;
             });
 
-            if ($product->barcodes()->count() > 0) {
-                $product->update(['status' => ProductStatus::Published]);
-            } else {
-                $product->update(['status' => ProductStatus::PendingBarcode]);
-            }
+            $product->update(['status' => $this->productService->computeStatus($product)]);
 
             return response()->json($product, 201);
         } catch (ValidationException $e) {
@@ -156,12 +160,16 @@ class ProductController
 
     public function show(Product $product)
     {
-        $product->images;
-        $product->categories;
-        $product->suppliers;
-        $product->priceLists;
-        $product->barcodes;
-        $product->promotions;
+        $product->load(
+            'attributeValues',
+            'images',
+            'suppliers',
+            'barcodes',
+            'priceLists',
+            'promotions',
+            'categories'
+        );
+        $product->loadCount('variants');
 
         return $product;
     }
@@ -206,6 +214,20 @@ class ProductController
 
         try {
             $validated = $request->validate($rules, $params);
+
+            if ($product->categories()->exists()) {
+                throw ValidationException::withMessages([
+                    'categories' => ['La categoría de un producto no puede modificarse una vez asignada.']
+                ]);
+            }
+
+            $categories = Category::whereIn('id', $validated['categories'])->get();
+            $parentIds = $categories->pluck('parent_id');
+            if ($parentIds->count() !== $parentIds->unique()->count()) {
+                throw ValidationException::withMessages([
+                    'categories' => ['No se pueden asignar dos categorías del mismo nivel al mismo tiempo.']
+                ]);
+            }
 
             $product = DB::transaction(function () use ($validated, $product) {
                 $this->productService->syncCategories($product, $validated['categories']);
@@ -295,12 +317,6 @@ class ProductController
 
             $product->barcodes;
 
-            if ($product->priceLists()->count() > 0) {
-                $product->update(['status' => ProductStatus::Published]);
-            } else {
-                $product->update(['status' => ProductStatus::PendingPrices]);
-            }
-
             return response()->json($product, 201);
         } catch (ValidationException $e) {
             return response()->json([$e->errors()], 422);
@@ -389,14 +405,14 @@ class ProductController
     public function addImages(Request $request, Product $product)
     {
         $rules = [
-            'images' => 'required|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:2048',
+            'images'     => 'required|array',
+            'images.*'   => 'image|mimes:jpeg,png,jpg,webp|max:2048',
+            'variant_id' => 'nullable|integer|exists:product_variants,id',
         ];
 
         $params = [
             'images.required' => 'Debes subir al menos una imagen para el producto.',
             'images.array' => 'El campo de imágenes debe ser un conjunto de archivos.',
-
             'images.*.image' => 'Uno de los archivos subidos no es una imagen válida.',
             'images.*.mimes' => 'La imagen debe estar en formato PNG, JPG, JPEG o WEBP.',
             'images.*.max' => 'La imagen no debe pesar más de 2MB (2048 KB).',
@@ -405,13 +421,19 @@ class ProductController
         try {
             $request->validate($rules, $params);
             $files = $request->file('images');
+            $variantId = $request->input('variant_id') ? (int) $request->input('variant_id') : null;
 
-            DB::transaction(function () use ($product, $files) {
-                $this->productService->addImagesToTheEnd($product, $files);
+            DB::transaction(function () use ($product, $files, $variantId) {
+                $this->productService->addImagesToTheEnd($product, $files, $variantId);
             });
 
-            $product->images;
-            return response()->json($product, 201); // 201 Created/Accepted
+            if ($variantId) {
+                $variant = $product->variants()->with('images')->find($variantId);
+                return response()->json(['images' => $variant?->images ?? []], 201);
+            }
+
+            $product->load('images');
+            return response()->json($product, 201);
         } catch (ValidationException $e) {
             return response()->json([$e->errors()], 422);
         } catch (\Exception $e) {
@@ -422,8 +444,8 @@ class ProductController
     public function deleteImages(Request $request, Product $product)
     {
         $request->validate([
-            'image_ids' => 'required|array',
-            'image_ids.*' => 'exists:images,id', // Asumiendo que existe una tabla 'images'
+            'image_ids'   => 'required|array',
+            'image_ids.*' => 'integer',
         ]);
 
         try {
@@ -527,11 +549,7 @@ class ProductController
                 return $product;
             });
 
-            if ($product->barcodes()->count() > 0) {
-                $product->update(['status' => ProductStatus::Published]);
-            } else {
-                $product->update(['status' => ProductStatus::PendingBarcode]);
-            }
+            $product->update(['status' => $this->productService->computeStatus($product)]);
 
             $product->load('suppliers', 'priceLists');
 
@@ -540,6 +558,31 @@ class ProductController
             return response()->json([$e->errors()], 422);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error al actualizar precios y proveedores: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function updateAttributeValues(Request $request, Product $product)
+    {
+        try {
+            $validated = $request->validate([
+                'attribute_values' => 'required|array',
+                'attribute_values.*.category_attribute_id' => 'required|integer|exists:category_attributes,id',
+                'attribute_values.*.value' => 'required|string|max:255',
+            ]);
+
+            // Upsert: actualiza si existe, crea si no
+            foreach ($validated['attribute_values'] as $av) {
+                $product->attributeValues()->updateOrCreate(
+                    ['category_attribute_id' => $av['category_attribute_id']],
+                    ['value' => $av['value']]
+                );
+            }
+
+            return response()->json($product->attributeValues()->with('categoryAttribute.options')->get());
+        } catch (ValidationException $e) {
+            return response()->json([$e->errors()], 422);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
@@ -557,8 +600,12 @@ class ProductController
         try {
             $validated = $request->validate($rules, $params);
 
-            // Llama al nuevo método del servicio que maneja la transacción
-            $product = $this->productService->updateProductStatus($product, $validated['status']);
+            // Al desarchivar, calcular el status real en base a precios
+            $newStatus = $validated['status'] === 'archived'
+                ? ProductStatus::Archived
+                : $this->productService->computeStatus($product);
+
+            $product = $this->productService->updateProductStatus($product, $newStatus->value);
 
             return response()->json($product, 200);
         } catch (ValidationException $e) {

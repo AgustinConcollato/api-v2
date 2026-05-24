@@ -5,12 +5,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\ProductVariant;
 
 class OrderDetail extends Model
 {
     protected $fillable = [
         'order_id',
         'product_id',
+        'variant_id',
         'promotion_id',
         'quantity',
         'unit_price',
@@ -35,6 +37,11 @@ class OrderDetail extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class, 'variant_id');
     }
 
     /**

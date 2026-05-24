@@ -4,13 +4,14 @@ namespace App\Services;
 
 use App\Enums\ProductStatus;
 use App\Models\Category;
+use App\Models\Image;
+use App\Models\PriceList;
 use App\Models\Product;
 use App\Models\ProductBarcode;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -118,7 +119,16 @@ class ProductService
      */
     public function getFilteredProducts(array $filters)
     {
-        $query = Product::with(['images', 'categories', 'suppliers', 'barcodes', 'promotions']);
+        $query = Product::with([
+            'images',
+            'categories',
+            'suppliers',
+            'barcodes',
+            'promotions',
+            'variants.images',
+            'variants.attributeValues.categoryAttribute',
+            'attributeValues'
+        ]);
 
         // 1. Búsqueda por nombre, SKU o descripción (fulltext con fallback)
         if (!empty($filters['search'])) {
@@ -147,9 +157,12 @@ class ProductService
             });
         }
 
-        // 4. Filtro por rango de stock
+        // 4. Filtro por rango de stock (incluye productos con stock en variantes)
         if (isset($filters['stock_min'])) {
-            $query->where('stock', '>=', $filters['stock_min']);
+            $query->where(function ($q) use ($filters) {
+                $q->where('stock', '>=', $filters['stock_min'])
+                  ->orWhereHas('variants', fn($vq) => $vq->where('stock', '>=', $filters['stock_min']));
+            });
         }
         if (isset($filters['stock_max'])) {
             $query->where('stock', '<=', $filters['stock_max']);
@@ -478,15 +491,24 @@ class ProductService
      */
     public function getProductByBarcode(string $barcode)
     {
-        $product = Product::findByBarcode($barcode);
+        $barcodeEntry = \App\Models\ProductBarcode::where('barcode', $barcode)->first();
 
-        if (!$product) {
+        if (!$barcodeEntry) {
             throw new \Exception("No se encuentra producto para el código: {$barcode}", 404);
         }
 
+        $product = $barcodeEntry->product;
         $product->images;
         $product->priceLists;
         $product->suppliers;
+
+        if ($barcodeEntry->variant_id) {
+            $variant = $barcodeEntry->variant->load([
+                'attributeValues.categoryAttribute',
+                'images',
+            ]);
+            $product->matched_variant = $variant;
+        }
 
         return $product;
     }
@@ -499,8 +521,10 @@ class ProductService
      */
     public function deleteImages(Product $product, array $imageIds): void
     {
-        // 1. Encontrar las imágenes que pertenecen a este producto y están en el array de IDs
-        $imagesToDelete = $product->images()->whereIn('id', $imageIds)->get();
+        // Query directa: incluye imágenes de variantes (bypasea el scope whereNull variant_id)
+        $imagesToDelete = Image::whereIn('id', $imageIds)
+            ->where('product_id', $product->id)
+            ->get();
 
         foreach ($imagesToDelete as $image) {
             /** @var \App\Models\Image $image */
@@ -525,10 +549,14 @@ class ProductService
      * @param array $files Array de objetos UploadedFile.
      * @return void
      */
-    public function addImagesToTheEnd(Product $product, array $files): void
+    public function addImagesToTheEnd(Product $product, array $files, ?int $variantId = null): void
     {
+        // Para variantes bypaseamos el scope de la relación (que filtra whereNull variant_id)
+        $query = $variantId
+            ? Image::where('product_id', $product->id)->where('variant_id', $variantId)
+            : $product->images();
 
-        $nextPosition = $product->images()->max('position');
+        $nextPosition = $query->max('position');
         $nextPosition = is_null($nextPosition) ? 0 : $nextPosition + 1;
 
         $targetThumbSize = 200;
@@ -577,9 +605,10 @@ class ProductService
 
             // 4. Crear el registro en DB con la posición calculada
             $product->images()->create([
+                'variant_id' => $variantId,
                 'path' => $originalPath,
                 'thumbnail_path' => $thumbnailPath,
-                'position' => $position, // <-- Posición final
+                'position' => $position,
             ]);
 
             imagedestroy($sourceImage);
@@ -700,20 +729,8 @@ class ProductService
             $product->refresh();
 
             $barcodesCount = $product->barcodes()->count();
-            $priceListsCount = $product->priceLists()->count();
 
-            // Priorizar el estado "Incomplete" cuando ambos (barcodes y price lists) están vacíos
-            if ($barcodesCount === 0 && $priceListsCount === 0) {
-                $product->update(['status' => ProductStatus::Incomplete]);
-            } elseif ($barcodesCount > 0 && $priceListsCount > 0) {
-                $product->update(['status' => ProductStatus::Published]);
-            } elseif ($barcodesCount === 0) {
-                $product->update(['status' => ProductStatus::PendingBarcode]);
-            } elseif ($priceListsCount === 0) {
-                $product->update(['status' => ProductStatus::PendingPrices]);
-            }
-
-            // Si el código eliminado era primario y aún hay otros códigos, asignar uno nuevo
+            // Si el código eliminado era primario y aún hay otros, asignar uno nuevo
             if ($wasPrimary && $barcodesCount > 0) {
                 $product->barcodes()->first()->update(['is_primary' => true]);
             }
@@ -773,6 +790,20 @@ class ProductService
         $product->load(['priceLists']);
 
         return $product;
+    }
+
+    /**
+     * Calcula el status correcto: published si tiene precio en TODAS las listas, incomplete si no.
+     * No toca Archived — ese es un estado manual.
+     */
+    public function computeStatus(Product $product): ProductStatus
+    {
+        $totalLists   = PriceList::count();
+        $productLists = $product->priceLists()->count();
+
+        return ($totalLists > 0 && $productLists >= $totalLists)
+            ? ProductStatus::Published
+            : ProductStatus::Incomplete;
     }
 
     public function updateProductStatus(Product $product, string $status)

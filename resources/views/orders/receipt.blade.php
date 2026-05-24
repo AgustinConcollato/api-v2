@@ -46,7 +46,6 @@
             width: 97%;
         }
 
-
         .info-box p {
             color: #555;
         }
@@ -71,6 +70,10 @@
             text-align: left;
             font-weight: bold;
             font-size: 11px;
+        }
+
+        .sku {
+            font-size: 9px;
         }
 
         table td {
@@ -155,6 +158,17 @@
         .page-break {
             page-break-before: always;
         }
+        
+        .variant-badge {
+            font-size: 10px; 
+            color: #2c3e50; 
+            font-weight: bold; 
+            background-color: #eef2f7; 
+            padding: 2px 6px; 
+            border-radius: 3px;
+            display: inline-block;
+            margin-top: 3px;
+        }
     </style>
 </head>
 
@@ -163,7 +177,7 @@
         <!-- Header -->
         <div class="header">
             <h1>Detalle del pedido</h1>
-            <div class="subtitle">Pedido #{{ substr($order->id, 0, 8) }} | Fecha: {{ $order->created_at->format('d/m/Y') }}</div>
+            <div class="subtitle">Pedido #{{ substr($order->id, 0, 8) }} | Fecha: {{ \Carbon\Carbon::parse($order->created_at)->format('d/m/Y') }}</div>
         </div>
 
         <!-- Información del Cliente y Pedido -->
@@ -194,31 +208,59 @@
             @endif
         </div>
 
-        <!-- Notas -->
-
         <!-- Detalles de Productos -->
         <div class="order-details">
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 35%;">Producto</th>
-                        <th style="width: 10%;" class="text-center">Cantidad</th>
+                        <th style="width: 10%;">Código</th>
+                        <th style="width: 30%;">Producto</th>
+                        <th style="width: 5%;" class="text-center">Cantidad</th>
                         <th style="width: 15%;" class="text-right">Precio Unit.</th>
                         <th style="width: 10%;" class="text-right">Desc.</th>
                         <th style="width: 15%;" class="text-right">Subtotal</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {{-- 
-                        Lógica de paginación: 
-                        Iteramos los detalles. Si el índice actual (base 0) + 1 es un múltiplo de 22, 
-                        insertamos un salto de página justo después de la fila, siempre y cuando no sea 
-                        la última fila.
-                    --}}
                     @foreach($order->details as $index => $detail)
                     <tr>
+                        <td class="sku">
+                            @php
+                                $sku = '';
+                                if (!empty($detail->variant_id) && $detail->variant) {
+                                    $sku = $detail->variant->sku;
+                                } elseif ($detail->product->variants->isNotEmpty()) {
+                                    $sku = $detail->product->sku;
+                                }
+                            @endphp
+
+                            {{ $sku }}
+                        </td>
                         <td>
-                            {{ $detail->product->name ?? 'Producto eliminado' }}
+                            @php
+                                $productName = $detail->product->name ?? 'Producto eliminado';
+                                $variantSuffix = '';
+
+                                if (!empty($detail->variant_id) && $detail->variant) {
+                                    // Variante específica: mostrar valor de la variante para attrs que difieren
+                                    $productAttrIds = $detail->product->attributeValues
+                                        ->pluck('category_attribute_id')->toArray();
+                                    $variantSuffix = $detail->variant->attributeValues
+                                        ->filter(fn($av) => in_array($av->category_attribute_id, $productAttrIds))
+                                        ->pluck('value')->filter()->join(' · ');
+
+                                } elseif ($detail->product->variants->isNotEmpty()) {
+                                    // Producto base con variantes: mostrar valor del base para attrs que varían
+                                    $variantAttrIds = $detail->product->variants
+                                        ->flatMap(fn($v) => $v->attributeValues->pluck('category_attribute_id'))
+                                        ->unique()->toArray();
+                                    $variantSuffix = $detail->product->attributeValues
+                                        ->filter(fn($av) => in_array($av->category_attribute_id, $variantAttrIds))
+                                        ->pluck('value')->filter()->join(' · ');
+                                }
+                            @endphp
+
+                            {{ $productName }}{{ $variantSuffix ? ' - ' . $variantSuffix : '' }}
                         </td>
                         <td class="text-center">{{ $detail->quantity }}</td>
                         <td class="text-right">${{ number_format($detail->unit_price, 2, ',', '.') }}</td>
@@ -241,10 +283,9 @@
                     @if (($index + 1) % 22 === 0 && ($index + 1) < count($order->details))
                 </tbody>
             </table>
-            {{-- Inserta el salto de página --}}
+            
             <div class="page-break"></div> 
             
-            {{-- Vuelve a abrir la tabla y el tbody para la siguiente página --}}
             <table>
                 <thead>
                     <tr>
@@ -297,11 +338,6 @@
                 <div class="totals-value">${{ number_format($order->final_total_amount, 2, ',', '.') }}</div>
             </div>
         </div>
-        <!-- Footer -->
-        <!-- <div class="footer">
-            <p>Este es un comprobante generado automáticamente el {{ now()->format('d/m/Y') }}</p>
-            <p>Gracias por su compra</p>
-        </div> -->
     </div>
 </body>
 

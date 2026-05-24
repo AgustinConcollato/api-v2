@@ -37,8 +37,7 @@ class Product extends Model
      */
     public function images(): HasMany
     {
-        // La clave foránea en la tabla 'images' es 'product_id'
-        return $this->hasMany(Image::class, 'product_id');
+        return $this->hasMany(Image::class, 'product_id')->whereNull('variant_id');
     }
 
     /**
@@ -148,5 +147,15 @@ class Product extends Model
     public function orderDetails()
     {
         return $this->hasMany(OrderDetail::class);
+    }
+
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class);
+    }
+
+    public function attributeValues(): HasMany
+    {
+        return $this->hasMany(ProductAttributeValue::class)->with('categoryAttribute.options');
     }
 }

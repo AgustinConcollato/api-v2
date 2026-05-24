@@ -12,6 +12,7 @@ class Image extends Model
 
     protected $fillable = [
         'product_id',
+        'variant_id',
         'path',
         'thumbnail_path',
         'position',
@@ -26,5 +27,10 @@ class Image extends Model
         // La clave de referencia en la tabla 'products' es de tipo UUID
         // por lo que debemos especificar el tipo de clave foránea.
         return $this->belongsTo(Product::class, 'product_id');
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class, 'variant_id');
     }
 }

@@ -1,12 +1,14 @@
 <?php
 
 use App\Http\Controllers\AccountMercadoPagoController;
+use App\Http\Controllers\CategoryAttributeController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PriceListController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
@@ -43,6 +45,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/{product}', [ProductController::class, 'update']);
         Route::put('/{product}/suppliers-prices', [ProductController::class, 'updateProductSuppliersPrices']);
         Route::put('/{product}/status', [ProductController::class, 'updateStatus']);
+        Route::put('/{product}/attribute-values', [ProductController::class, 'updateAttributeValues']);
+
+        // Variantes
+        Route::get('/variants/search', [ProductVariantController::class, 'search']);
+        Route::get('/{product}/variants', [ProductVariantController::class, 'index']);
+        Route::post('/{product}/variants', [ProductVariantController::class, 'store']);
+        Route::post('/{product}/variants/{variant}/barcode', [ProductVariantController::class, 'storeBarcode']);
+        Route::put('/{product}/variants/{variant}', [ProductVariantController::class, 'update']);
+        Route::delete('/{product}/variants/{variant}', [ProductVariantController::class, 'destroy']);
     });
 
     Route::prefix('categories')->group(function () {
@@ -51,6 +62,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/', [CategoryController::class, 'store']);
         Route::put('/{category}', [CategoryController::class, 'update']);
         Route::delete('/{category}', [CategoryController::class, 'destroy']);
+
+        // Atributos de categoría
+        Route::get('/{category}/attributes', [CategoryAttributeController::class, 'index']);
+        Route::post('/{category}/attributes', [CategoryAttributeController::class, 'store']);
+        Route::put('/{category}/attributes/{attribute}', [CategoryAttributeController::class, 'update']);
+        Route::delete('/{category}/attributes/{attribute}', [CategoryAttributeController::class, 'destroy']);
     });
 
     Route::prefix('suppliers')->group(function () {

@@ -11,6 +11,7 @@ class ProductBarcode extends Model
 
     protected $fillable = [
         'product_id',
+        'variant_id',
         'barcode',
         'is_primary'
     ];
@@ -22,5 +23,10 @@ class ProductBarcode extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function variant()
+    {
+        return $this->belongsTo(ProductVariant::class, 'variant_id');
     }
 }

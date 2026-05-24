@@ -52,14 +52,22 @@ class Category extends Model
         return $this->belongsToMany(Product::class);
     }
 
+    public function attributes(): HasMany
+    {
+        return $this->hasMany(CategoryAttribute::class)->orderBy('sort_order');
+    }
+
     public static function getTopLevelCategories()
     {
-        $categories = Category::whereNull('parent_id')
-            ->with(['children.parent', 'children.children'])
+        return Category::whereNull('parent_id')
+            ->withCount(['attributes', 'products'])
+            ->with([
+                'children' => fn($q) => $q->withCount(['attributes', 'products']),
+                'children.parent',
+                'children.children' => fn($q) => $q->withCount(['attributes', 'products']),
+            ])
             ->orderBy('name')
             ->get();
-
-        return $categories;
     }
 
     /**

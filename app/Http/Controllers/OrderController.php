@@ -62,6 +62,7 @@ class OrderController
             'status' => 'nullable|string',
             'client_id' => 'nullable|exists:clients,id',
             'range' => 'nullable|string|in:week,month,all',
+            'with_debt' => 'nullable|boolean',
         ];
 
         $params = [
@@ -130,7 +131,14 @@ class OrderController
      */
     public function show(string $id)
     {
-        $order = Order::with('client', 'details', 'details.product.images', 'payments')->find($id);
+        $order = Order::with(
+            'client',
+            'details',
+            'details.product.images',
+            'details.variant.images',
+            'details.variant.attributeValues',
+            'payments'
+        )->find($id);
 
         if (!$order) {
             return response()->json(['error' => 'Pedido no encontrado'], 404);
@@ -154,9 +162,10 @@ class OrderController
         }
 
         $rules = [
-            'product_id' => 'required|uuid|exists:products,id',
-            'quantity' => 'required|integer|min:1',
-            'unit_price' => 'required|numeric|min:0',
+            'product_id'     => 'required|uuid|exists:products,id',
+            'variant_id'     => 'nullable|integer|exists:product_variants,id',
+            'quantity'       => 'required|integer|min:1',
+            'unit_price'     => 'required|numeric|min:0',
             'purchase_price' => 'required|numeric|min:0',
         ];
 
@@ -188,7 +197,7 @@ class OrderController
             // 3. RESPUESTA
             return response()->json([
                 'message' => 'Producto agregado. Totales actualizados.',
-                'detail' => $detail->load('product'),
+                'detail' => $detail->load('product', 'variant.images'),
                 'order_totals' => $order->fresh()
             ], 200);
         } catch (ValidationException $e) {
@@ -332,7 +341,13 @@ class OrderController
     {
         try {
             // Cargar la orden con todas las relaciones necesarias
-            $order = Order::with('client', 'details.product', 'payments')->find($id);
+            $order = Order::with([
+                'client',
+                'details.product.attributeValues',
+                'details.product.variants.attributeValues',
+                'details.variant.attributeValues',
+                'payments',
+            ])->find($id);
 
             if (!$order) {
                 return response()->json(['error' => 'Pedido no encontrado.'], 404);
