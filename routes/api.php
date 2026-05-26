@@ -165,9 +165,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 });
 
-// rutas públicas 
+// rutas públicas
 Route::post('/login', [UserController::class, 'login']);
 Route::get('/catalog', [ProductController::class, 'publicIndex']);
+Route::get('/catalog/{product}', [ProductController::class, 'publicShow']);
+Route::get('/categories', [CategoryController::class, 'index']);
 
 Route::fallback(function () {
     return response()->json([

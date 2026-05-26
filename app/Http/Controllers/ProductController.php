@@ -252,6 +252,32 @@ class ProductController
         }
     }
 
+    public function publicShow(Product $product)
+    {
+        if ($product->status !== ProductStatus::Published) {
+            return response()->json(['error' => 'Not found'], 404);
+        }
+
+        $product->load([
+            'images',
+            'categories',
+            'priceLists',
+            'barcodes',
+            'attributeValues.categoryAttribute',
+            'variants' => fn($q) => $q->where('is_active', true)->orderBy('id'),
+            'variants.attributeValues.categoryAttribute',
+            'variants.images',
+            'variants.barcodes',
+        ]);
+
+        $product->setRelation('priceLists', $product->priceLists->map(fn($pl) => [
+            'id'    => $pl->id,
+            'price' => $pl->pivot->price,
+        ]));
+
+        return response()->json($product);
+    }
+
     public function publicIndex(Request $request)
     {
         try {
