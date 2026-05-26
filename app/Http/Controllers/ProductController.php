@@ -268,11 +268,21 @@ class ProductController
             'variants.attributeValues.categoryAttribute',
             'variants.images',
             'variants.barcodes',
+            'promotions' => fn($q) => $q->active(),
+            'promotions.priceLists',
         ]);
 
         $product->setRelation('priceLists', $product->priceLists->map(fn($pl) => [
             'id'    => $pl->id,
             'price' => $pl->pivot->price,
+        ]));
+
+        $product->setRelation('promotions', $product->promotions->map(fn($p) => [
+            'discount_type'       => $p->discount_type,
+            'discount_value'      => (float) $p->discount_value,
+            'max_discount_amount' => $p->max_discount_amount ? (float) $p->max_discount_amount : null,
+            'min_quantity'        => $p->min_quantity,
+            'price_list_ids'      => $p->priceLists->pluck('id')->toArray(),
         ]));
 
         return response()->json($product);

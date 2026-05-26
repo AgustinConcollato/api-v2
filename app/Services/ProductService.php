@@ -97,6 +97,18 @@ class ProductService
                                     ->orWhere('description', 'like', '%' . $word . '%')
                                     ->orWhereHas('barcodes', function ($barcodeQuery) use ($word) {
                                         $barcodeQuery->where('barcode', 'like', '%' . $word . '%');
+                                    })
+                                    ->orWhereHas('attributeValues', fn($av) =>
+                                        $av->where('value', 'like', '%' . $word . '%')
+                                    )
+                                    ->orWhereHas('variants', function ($vq) use ($word) {
+                                        $vq->where('is_active', true)
+                                           ->where(function ($vi) use ($word) {
+                                               $vi->where('sku', 'like', '%' . $word . '%')
+                                                  ->orWhereHas('attributeValues', fn($av) =>
+                                                      $av->where('value', 'like', '%' . $word . '%')
+                                                  );
+                                           });
                                     });
                             });
                         }
@@ -239,7 +251,14 @@ class ProductService
      */
     public function getPublicProducts(array $filters = [])
     {
-        $query = Product::with(['images', 'categories', 'barcodes', 'priceLists']);
+        $query = Product::with([
+            'images', 'categories', 'barcodes', 'priceLists',
+            'promotions' => fn($q) => $q->active(),
+            'promotions.priceLists',
+            'variants' => fn($q) => $q->where('is_active', true)->orderBy('id'),
+            'variants.attributeValues.categoryAttribute',
+            'variants.images',
+        ]);
 
         // 1. Búsqueda por nombre, SKU o descripción (fulltext con fallback)
         if (!empty($filters['search'])) {
@@ -260,9 +279,14 @@ class ProductService
             });
         }
 
-        // 3. Filtro por rango de stock
+        // 3. Filtro por rango de stock (incluye productos con stock en variantes)
         if (isset($filters['stock_min'])) {
-            $query->where('stock', '>=', $filters['stock_min']);
+            $query->where(function ($q) use ($filters) {
+                $q->where('stock', '>=', $filters['stock_min'])
+                  ->orWhereHas('variants', fn($vq) =>
+                      $vq->where('is_active', true)->where('stock', '>=', $filters['stock_min'])
+                  );
+            });
         }
         if (isset($filters['stock_max'])) {
             $query->where('stock', '<=', $filters['stock_max']);
@@ -345,6 +369,14 @@ class ProductService
                     'price' => $priceList->pivot->price ?? null,
                 ];
             });
+
+            $product->setRelation('promotions', $product->promotions->map(fn($p) => [
+                'discount_type'       => $p->discount_type,
+                'discount_value'      => (float) $p->discount_value,
+                'max_discount_amount' => $p->max_discount_amount ? (float) $p->max_discount_amount : null,
+                'min_quantity'        => $p->min_quantity,
+                'price_list_ids'      => $p->priceLists->pluck('id')->toArray(),
+            ]));
 
             return $product;
         });
