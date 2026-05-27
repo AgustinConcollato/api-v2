@@ -20,7 +20,7 @@ class CategoryAttributeController
         try {
             $validated = $request->validate([
                 'name'       => 'required|string|max:100',
-                'type'       => 'required|in:text,number,select,boolean',
+                'type'       => 'required|in:text,number,select,boolean,combo',
                 'required'   => 'boolean',
                 'sort_order' => 'integer|min:0',
                 'options'    => 'array',
@@ -34,7 +34,7 @@ class CategoryAttributeController
                 'sort_order' => $validated['sort_order'] ?? 0,
             ]);
 
-            if ($attribute->type === 'select' && !empty($validated['options'])) {
+            if (in_array($attribute->type, ['select', 'combo']) && !empty($validated['options'])) {
                 foreach ($validated['options'] as $i => $value) {
                     $attribute->options()->create(['value' => $value, 'sort_order' => $i]);
                 }
@@ -57,7 +57,7 @@ class CategoryAttributeController
         try {
             $validated = $request->validate([
                 'name'       => 'required|string|max:100',
-                'type'       => 'required|in:text,number,select,boolean',
+                'type'       => 'required|in:text,number,select,boolean,combo',
                 'required'   => 'boolean',
                 'sort_order' => 'integer|min:0',
                 'options'    => 'array',
@@ -71,7 +71,7 @@ class CategoryAttributeController
                 'sort_order' => $validated['sort_order'] ?? $attribute->sort_order,
             ]);
 
-            if ($attribute->type === 'select' && isset($validated['options'])) {
+            if (in_array($attribute->type, ['select', 'combo']) && isset($validated['options'])) {
                 $attribute->options()->delete();
                 foreach ($validated['options'] as $i => $value) {
                     $attribute->options()->create(['value' => $value, 'sort_order' => $i]);
