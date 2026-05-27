@@ -260,7 +260,7 @@ class ProductController
 
         $product->load([
             'images',
-            'categories',
+            'categories.parent',
             'priceLists',
             'barcodes',
             'attributeValues.categoryAttribute',

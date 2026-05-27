@@ -345,7 +345,7 @@ class CategoryStructureSeeder extends Seeder
             foreach ($children as $childName => $attributes) {
                 $child = Category::create([
                     'name' => $childName,
-                    'slug' => Str::slug($rootName . '-' . $childName),
+                    'slug' => Str::slug($childName),
                     'parent_id' => $root->id,
                 ]);
 
