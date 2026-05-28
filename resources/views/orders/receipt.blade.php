@@ -229,7 +229,7 @@
                                 $sku = '';
                                 if (!empty($detail->variant_id) && $detail->variant) {
                                     $sku = $detail->variant->sku;
-                                } elseif ($detail->product->variants->isNotEmpty()) {
+                                } else {
                                     $sku = $detail->product->sku;
                                 }
                             @endphp
