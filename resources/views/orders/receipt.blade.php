@@ -196,6 +196,11 @@
                 @if($order->shipping_address)
                 <p>Dirección de envío: {{ $order->shipping_address }}</p>
                 @endif
+                <!-- @if($order->shipping_address)
+                @php $addr = $order->shipping_address; @endphp
+                <p>Dirección: {{ $addr['street'] ?? '' }} {{ $addr['street_number'] ?? '' }}{{ !empty($addr['floor']) ? ', Piso ' . $addr['floor'] : '' }}{{ !empty($addr['apartment']) ? ' Dpto. ' . $addr['apartment'] : '' }}</p>
+                <p>Localidad: {{ $addr['locality'] ?? '-' }}, {{ $addr['province'] ?? '-' }} (CP: {{ $addr['postal_code'] ?? '-' }})</p>
+                @endif -->
                 @else
                 <p>Cliente no asignado</p>
                 @endif
@@ -280,7 +285,7 @@
                     </tr>
                     
                     {{-- Comprobación de salto de página cada 22 productos --}}
-                    @if (($index + 1) % 22 === 0 && ($index + 1) < count($order->details))
+                    @if (($index + 1) % 15 === 0 && ($index + 1) < count($order->details))
                 </tbody>
             </table>
             
@@ -289,6 +294,7 @@
             <table>
                 <thead>
                     <tr>
+                    <th style="width: 10%;">Código</th>
                         <th style="width: 35%;">Producto</th>
                         <th style="width: 10%;" class="text-center">Cantidad</th>
                         <th style="width: 15%;" class="text-right">Precio Unit.</th>
