@@ -23,6 +23,7 @@ return [
         'https://admin.concoypunto.com',
         'https://concoypunto.com',
         'https://www.concoypunto.com',
+        'https://mayorista.concoypunto.com',
     ],
 
     'allowed_origins_patterns' => [],
