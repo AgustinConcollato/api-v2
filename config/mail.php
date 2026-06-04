@@ -115,4 +115,15 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Destinatario de avisos de pedidos
+    |--------------------------------------------------------------------------
+    |
+    | Dirección interna que recibe el aviso cuando entra un pedido pendiente.
+    |
+    */
+
+    'order_notify' => env('ORDER_NOTIFY_EMAIL', 'bazarshopmayorista@gmail.com'),
+
 ];

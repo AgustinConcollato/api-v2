@@ -7,10 +7,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Laravel\Sanctum\HasApiTokens;
 
 class Client extends Authenticatable implements MustVerifyEmail
 {
-    use HasFactory, HasUuids;
+    use HasApiTokens, HasFactory, HasUuids;
 
     public $incrementing = false;
     protected $keyType = 'string';
@@ -19,10 +21,8 @@ class Client extends Authenticatable implements MustVerifyEmail
         'name',
         'email',
         'phone',
-        'address',
         'password',
         'price_list_id',
-        // No listamos los campos de verificación aquí, se manejan internamente
     ];
 
     protected $hidden = [
@@ -58,5 +58,10 @@ class Client extends Authenticatable implements MustVerifyEmail
     public function orders()
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(Address::class);
     }
 }

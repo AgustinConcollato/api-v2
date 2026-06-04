@@ -258,6 +258,7 @@ class ProductService
             'variants' => fn($q) => $q->where('is_active', true)->orderBy('id'),
             'variants.attributeValues.categoryAttribute',
             'variants.images',
+            'attributeValues',
         ]);
 
         // 1. Búsqueda por nombre, SKU o descripción (fulltext con fallback)
@@ -375,6 +376,7 @@ class ProductService
                 'discount_value'      => (float) $p->discount_value,
                 'max_discount_amount' => $p->max_discount_amount ? (float) $p->max_discount_amount : null,
                 'min_quantity'        => $p->min_quantity,
+                'end_at'              => $p->end_at,
                 'price_list_ids'      => $p->priceLists->pluck('id')->toArray(),
             ]));
 

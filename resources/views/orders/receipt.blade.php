@@ -193,14 +193,14 @@
                     }}
                 </p>
                 <p>Teléfono: {{ $order->client->phone ?? '-' }}</p>
-                @if($order->shipping_address)
-                <p>Dirección de envío: {{ $order->shipping_address }}</p>
-                @endif
                 <!-- @if($order->shipping_address)
+                <p>Dirección de envío: {{ $order->shipping_address['street'] }}</p>
+                @endif -->
+                @if($order->shipping_address)
                 @php $addr = $order->shipping_address; @endphp
                 <p>Dirección: {{ $addr['street'] ?? '' }} {{ $addr['street_number'] ?? '' }}{{ !empty($addr['floor']) ? ', Piso ' . $addr['floor'] : '' }}{{ !empty($addr['apartment']) ? ' Dpto. ' . $addr['apartment'] : '' }}</p>
                 <p>Localidad: {{ $addr['locality'] ?? '-' }}, {{ $addr['province'] ?? '-' }} (CP: {{ $addr['postal_code'] ?? '-' }})</p>
-                @endif -->
+                @endif
                 @else
                 <p>Cliente no asignado</p>
                 @endif

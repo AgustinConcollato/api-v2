@@ -481,7 +481,7 @@ class OrderService
      *
      * @return array [discount_percentage, discount_fixed_amount, promotion_id|null]
      */
-    protected function calculatePromotionForLine(
+    public function calculatePromotionForLine(
         Order $order,
         Product $product,
         int $quantity,

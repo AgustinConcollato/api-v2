@@ -53,6 +53,12 @@ class OrderController
     //     return response()->json($orders);
     // }
 
+    public function pendingCount()
+    {
+        $count = Order::where('status', 'pending')->count();
+        return response()->json(['count' => $count]);
+    }
+
     public function index(Request $request)
     {
 
@@ -93,7 +99,14 @@ class OrderController
 
         $rules = [
             'client_id' => 'nullable|uuid|exists:clients,id',
-            'shipping_address' => 'nullable|string',
+            'shipping_address'                   => 'nullable|array',
+            'shipping_address.street'            => 'required_with:shipping_address|string|max:255',
+            'shipping_address.street_number'     => 'required_with:shipping_address|string|max:20',
+            'shipping_address.floor'             => 'nullable|string|max:10',
+            'shipping_address.apartment'         => 'nullable|string|max:10',
+            'shipping_address.locality'          => 'required_with:shipping_address|string|max:255',
+            'shipping_address.province'          => 'required_with:shipping_address|string|max:100',
+            'shipping_address.postal_code'       => 'required_with:shipping_address|string|max:10',
             'price_list_id' => 'required|integer|exists:price_lists,id',
         ];
 
@@ -104,7 +117,11 @@ class OrderController
             'price_list_id.exists' => 'La lista de precios especificada no existe en la base de datos.',
             'price_list_id.required' => 'La lista de precios es obligatoria.',
 
-            'shipping_address.string' => 'La dirección de envío debe ser texto.',
+            'shipping_address.street.required_with'       => 'La calle es obligatoria.',
+            'shipping_address.street_number.required_with'=> 'El número es obligatorio.',
+            'shipping_address.locality.required_with'     => 'La localidad es obligatoria.',
+            'shipping_address.province.required_with'     => 'La provincia es obligatoria.',
+            'shipping_address.postal_code.required_with'  => 'El código postal es obligatorio.',
         ];
 
         // 1. VALIDACIÓN

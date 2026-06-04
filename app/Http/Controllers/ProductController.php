@@ -252,16 +252,18 @@ class ProductController
         }
     }
 
-    public function publicShow(Product $product)
+    public function publicShow(Request $request, Product $product)
     {
         if ($product->status !== ProductStatus::Published) {
             return response()->json(['error' => 'Not found'], 404);
         }
 
+        $priceListId = $request->query('price_list_id') ? (int) $request->query('price_list_id') : null;
+
         $product->load([
             'images',
             'categories.parent',
-            'priceLists',
+            'priceLists' => fn($q) => $priceListId ? $q->where('price_list_id', $priceListId) : $q,
             'barcodes',
             'attributeValues.categoryAttribute',
             'variants' => fn($q) => $q->where('is_active', true)->orderBy('id'),
@@ -277,13 +279,21 @@ class ProductController
             'price' => $pl->pivot->price,
         ]));
 
-        $product->setRelation('promotions', $product->promotions->map(fn($p) => [
+        $promotions = $priceListId
+            ? $product->promotions->filter(
+                fn($p) =>
+                $p->priceLists->isEmpty() || $p->priceLists->pluck('id')->contains($priceListId)
+            )
+            : $product->promotions;
+
+        $product->setRelation('promotions', $promotions->map(fn($p) => [
             'discount_type'       => $p->discount_type,
             'discount_value'      => (float) $p->discount_value,
             'max_discount_amount' => $p->max_discount_amount ? (float) $p->max_discount_amount : null,
             'min_quantity'        => $p->min_quantity,
+            'ends_at'              => $p->ends_at,
             'price_list_ids'      => $p->priceLists->pluck('id')->toArray(),
-        ]));
+        ])->values());
 
         return response()->json($product);
     }

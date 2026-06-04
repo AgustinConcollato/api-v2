@@ -23,12 +23,14 @@ class Order extends Model
         'shipping_cost',
         'final_total_amount',
         'shipping_address',
+        'delivery_method',
         'notes',
         'price_list_id',
     ];
 
     protected $casts = [
-        'status' => OrderStatus::class, // <-- Esto es vital
+        'status'           => OrderStatus::class,
+        'shipping_address' => 'array',
     ];
 
     protected static array $statusTransitions = [

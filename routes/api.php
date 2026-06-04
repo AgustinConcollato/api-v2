@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\AccountMercadoPagoController;
+use App\Http\Controllers\AddressController;
+use App\Http\Controllers\ClientAuthController;
 use App\Http\Controllers\CategoryAttributeController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ClientController;
@@ -15,6 +17,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\GeminiAssistantController;
 use App\Http\Controllers\MercadoLibreController;
+use App\Http\Controllers\WholesaleController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -88,6 +91,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::prefix('orders')->group(function () {
         Route::get('/', [OrderController::class, 'index']); // Listar todos los pedidos
         Route::post('/', [OrderController::class, 'store']); // Crear la cabecera de un nuevo pedido (vacío)
+        Route::get('/pending-count', [OrderController::class, 'pendingCount']); // Contar pedidos pendientes
         Route::get('/{id}', [OrderController::class, 'show']); // Mostrar un pedido específico
         Route::get('/{id}/pdf', [OrderController::class, 'downloadPdf']); // Descargar PDF del comprobante
         Route::put('/{id}', [OrderController::class, 'update']); // actualizar cabezera
@@ -165,11 +169,30 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 });
 
+// Client auth — públicas
+Route::post('/client/login', [ClientAuthController::class, 'login']);
+Route::post('/client/register', [ClientAuthController::class, 'register']);
+Route::post('/client/register-from-order', [ClientAuthController::class, 'registerFromOrder']);
+
+// Client auth — protegidas
+Route::middleware('auth:client')->group(function () {
+    Route::get('/client/me', [ClientAuthController::class, 'me']);
+    Route::put('/client/me', [ClientAuthController::class, 'updateProfile']);
+    Route::post('/client/logout', [ClientAuthController::class, 'logout']);
+
+    Route::get('/client/addresses', [AddressController::class, 'index']);
+    Route::post('/client/addresses', [AddressController::class, 'store']);
+    Route::put('/client/addresses/{address}', [AddressController::class, 'update']);
+    Route::delete('/client/addresses/{address}', [AddressController::class, 'destroy']);
+    Route::put('/client/addresses/{address}/default', [AddressController::class, 'setDefault']);
+});
+
 // rutas públicas
 Route::post('/login', [UserController::class, 'login']);
 Route::get('/catalog', [ProductController::class, 'publicIndex']);
 Route::get('/catalog/{product}', [ProductController::class, 'publicShow']);
 Route::get('/categories', [CategoryController::class, 'index']);
+Route::post('/orders/wholesale', [WholesaleController::class, 'checkout']);
 
 Route::fallback(function () {
     return response()->json([
