@@ -12,7 +12,7 @@ class ClientController
 {
 
 
-    protected $clientService;
+    protected $clientService; 
 
     public function __construct(ClientService $clientService)
     {
@@ -73,6 +73,15 @@ class ClientController
             return response()->json(['errors' => $e->errors()], 422);
         } catch (\Exception $e) {
             return response()->json(['error' => 'No se pudo actualizar la categoría.', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function show(Client $client)
+    {
+        try {
+            return response()->json($this->clientService->getDetail($client));
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al obtener el detalle del cliente.', 'message' => $e->getMessage()], 500);
         }
     }
 
