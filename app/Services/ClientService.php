@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\OrderStatus;
 use App\Models\Client;
 use App\Models\Order;
+use App\Models\Payment;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Hash;
@@ -60,7 +61,45 @@ class ClientService
      */
     public function getClients(): Collection
     {
-        return Client::with('priceList')->get();
+        $clients = Client::query()
+            ->with('priceList')
+            ->withCount('orders') // orders_count = todos los pedidos
+            ->withCount(['orders as valid_orders_count' => fn($q) => $q->where('status', '!=', 'cancelled')])
+            ->withSum(['orders as total_spent_sum' => fn($q) => $q->where('status', '!=', 'cancelled')], 'final_total_amount')
+            ->withMax(['orders as last_order_at' => fn($q) => $q->where('status', '!=', 'cancelled')], 'created_at')
+            ->addSelect(['total_paid_sum' => Payment::query()
+                ->selectRaw('COALESCE(SUM(payments.amount), 0)')
+                ->join('orders', 'orders.id', '=', 'payments.order_id')
+                ->whereColumn('orders.client_id', 'clients.id')
+                ->where('orders.status', '!=', 'cancelled')
+                ->where('payments.status', 'completed')])
+            ->get();
+
+        $clients->each(function ($client) {
+            $totalSpent  = (float) ($client->total_spent_sum ?? 0);
+            $totalPaid   = (float) ($client->total_paid_sum ?? 0);
+            $validCount  = (int) $client->valid_orders_count;
+            $lastOrderAt = $client->last_order_at;
+            $daysSinceLast = $lastOrderAt ? now()->diffInDays(Carbon::parse($lastOrderAt)) : null;
+
+            if ($validCount === 0)                                       $segment = 'sin_pedidos';
+            elseif ($validCount === 1)                                   $segment = 'nuevo';
+            elseif ($daysSinceLast !== null && $daysSinceLast > 90)      $segment = 'inactivo';
+            else                                                         $segment = 'recurrente';
+
+            $client->setAttribute('stats', [
+                'total_orders'    => (int) $client->orders_count,
+                'total_spent'     => $totalSpent,
+                'balance_due'     => max(0, $totalSpent - $totalPaid),
+                'avg_order_value' => $validCount > 0 ? round($totalSpent / $validCount, 2) : 0,
+                'last_order_at'   => $lastOrderAt,
+                'segment'         => $segment,
+            ]);
+
+            $client->makeHidden(['total_spent_sum', 'total_paid_sum', 'valid_orders_count', 'orders_count', 'last_order_at']);
+        });
+
+        return $clients;
     }
 
     /**
