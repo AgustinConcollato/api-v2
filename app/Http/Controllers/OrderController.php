@@ -179,11 +179,12 @@ class OrderController
         }
 
         $rules = [
-            'product_id'     => 'required|uuid|exists:products,id',
-            'variant_id'     => 'nullable|integer|exists:product_variants,id',
-            'quantity'       => 'required|integer|min:1',
-            'unit_price'     => 'required|numeric|min:0',
-            'purchase_price' => 'required|numeric|min:0',
+            'product_id'      => 'required|uuid|exists:products,id',
+            'variant_id'      => 'nullable|integer|exists:product_variants,id',
+            'quantity'        => 'required|integer|min:1',
+            'unit_price'      => 'required|numeric|min:0',
+            'purchase_price'  => 'required|numeric|min:0',
+            'freight_percent' => 'nullable|numeric|min:0|max:100',
         ];
 
         $params = [

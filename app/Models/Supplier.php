@@ -43,7 +43,7 @@ class Supplier extends Model
     {
         // Usamos ->withPivot() para acceder a los campos adicionales en la tabla 'product_supplier'
         return $this->belongsToMany(Product::class, 'product_supplier', 'supplier_id', 'product_id')
-            ->withPivot('purchase_price', 'supplier_product_url')
+            ->withPivot('purchase_price', 'freight_percent', 'supplier_product_url')
             ->withTimestamps();
     }
 }

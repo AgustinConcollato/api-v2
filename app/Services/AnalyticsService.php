@@ -68,7 +68,7 @@ class AnalyticsService
         $totalRevenue = (float) $orders->sum('final_total_amount');
         $shippingCost = (float) $orders->sum('shipping_cost');
 
-        // Total pagado (pagos completados)
+        // Total pagado (pagos completados) de los pedidos del período
         $totalPaid = (float) DB::table('payments')
             ->whereIn('order_id', $orderIds)
             ->where('status', 'completed')
@@ -76,10 +76,25 @@ class AnalyticsService
 
         $remainingToCollect = max(0, $totalRevenue - $totalPaid);
 
-        // Costo total (suma de purchase_price * 1.05 * quantity)
+        // Efectivo real recibido en el período (sin filtro de pedido)
+        if ($effectiveStart && $effectiveEnd) {
+            $totalCollectedInPeriod = (float) DB::table('payments')
+                ->where('status', 'completed')
+                ->whereBetween('created_at', [
+                    $effectiveStart . ' 00:00:00',
+                    $effectiveEnd   . ' 23:59:59',
+                ])
+                ->sum('amount');
+        } else {
+            $totalCollectedInPeriod = (float) DB::table('payments')
+                ->where('status', 'completed')
+                ->sum('amount');
+        }
+
+        // Costo total: (purchase_price + freight_per_unit) * quantity
         $totalCost = (float) DB::table('order_details')
             ->whereIn('order_id', $orderIds)
-            ->select(DB::raw('SUM((purchase_price * 1.05) * quantity) as total'))
+            ->select(DB::raw('SUM((purchase_price + freight_per_unit) * quantity) as total'))
             ->value('total') ?? 0;
 
         $profit = $totalRevenue - $totalCost - $shippingCost;
@@ -138,15 +153,44 @@ class AnalyticsService
         // Reinversión: 10% de la ganancia antes de reinversión ($profit = revenue - cost - shipping).
         $reinvestmentAmount = $profit * 0.1;
 
-        // Serie temporal: pagos completados por día (ingreso real cobrado)
-        $revenueOverTime = DB::table('payments')
+        // Serie temporal: pagos completados por día del período (no filtrado por pedido)
+        if ($effectiveStart && $effectiveEnd) {
+            $revenueOverTime = DB::table('payments')
+                ->select(
+                    DB::raw('DATE(created_at) as date'),
+                    DB::raw('SUM(amount) as revenue'),
+                    DB::raw('COUNT(DISTINCT order_id) as orders_count')
+                )
+                ->where('status', 'completed')
+                ->whereBetween('created_at', [
+                    $effectiveStart . ' 00:00:00',
+                    $effectiveEnd   . ' 23:59:59',
+                ])
+                ->groupBy(DB::raw('DATE(created_at)'))
+                ->orderBy('date')
+                ->get();
+        } else {
+            $revenueOverTime = DB::table('payments')
+                ->select(
+                    DB::raw('DATE(created_at) as date'),
+                    DB::raw('SUM(amount) as revenue'),
+                    DB::raw('COUNT(DISTINCT order_id) as orders_count')
+                )
+                ->whereIn('order_id', $orderIds)
+                ->where('status', 'completed')
+                ->groupBy(DB::raw('DATE(created_at)'))
+                ->orderBy('date')
+                ->get();
+        }
+
+        // Serie temporal: pedidos facturados por día
+        $ordersOverTime = DB::table('orders')
             ->select(
                 DB::raw('DATE(created_at) as date'),
-                DB::raw('SUM(amount) as revenue'),
-                DB::raw('COUNT(DISTINCT order_id) as orders_count')
+                DB::raw('SUM(final_total_amount) as billed'),
+                DB::raw('COUNT(*) as count')
             )
-            ->whereIn('order_id', $orderIds)
-            ->where('status', 'completed')
+            ->whereIn('id', $orderIds)
             ->groupBy(DB::raw('DATE(created_at)'))
             ->orderBy('date')
             ->get();
@@ -165,6 +209,8 @@ class AnalyticsService
             'payments_by_status' => $paymentsByStatus,
             'shipping_cost' => round($shippingCost, 2),
             'revenue_over_time' => $revenueOverTime,
+            'orders_over_time' => $ordersOverTime,
+            'total_collected_in_period' => round($totalCollectedInPeriod, 2),
         ];
 
         // Comparación: solo cuando range=month (mes actual vs mes anterior completo)

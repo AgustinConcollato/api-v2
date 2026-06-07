@@ -127,7 +127,7 @@ class Order extends Model
     {
         // Suma el precio de compra * cantidad de cada detalle
         return $this->details->sum(function ($detail) {
-            return ($detail->purchase_price * 1.05) * $detail->quantity;
+            return ($detail->purchase_price + $detail->freight_per_unit) * $detail->quantity;
         });
     }
 }

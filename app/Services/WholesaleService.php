@@ -88,14 +88,17 @@ class WholesaleService
             }
 
             $unitPriceFloat = (float) $unitPrice;
+            $purchasePrice  = (float) ($product->suppliers->first()?->pivot->purchase_price
+                ?? round($unitPriceFloat * self::PURCHASE_PRICE_RATIO, 2));
+            $freightPercent = (float) ($product->suppliers->first()?->pivot->freight_percent ?? 5.00);
             $resolved[] = [
-                'product_id'     => $productId,
-                'variant_id'     => $variantId,
-                'quantity'       => $qty,
-                'unit_price'     => $unitPriceFloat,
-                'purchase_price' => (float) ($product->suppliers->first()?->pivot->purchase_price
-                    ?? round($unitPriceFloat * self::PURCHASE_PRICE_RATIO, 2)),
-                'subtotal'       => round($unitPriceFloat * $qty, 2),
+                'product_id'      => $productId,
+                'variant_id'      => $variantId,
+                'quantity'        => $qty,
+                'unit_price'      => $unitPriceFloat,
+                'purchase_price'  => $purchasePrice,
+                'freight_percent' => $freightPercent,
+                'subtotal'        => round($unitPriceFloat * $qty, 2),
             ];
         }
 

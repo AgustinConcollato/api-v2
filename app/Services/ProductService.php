@@ -430,7 +430,8 @@ class ProductService
         $supplierPivotData = [];
         foreach ($supplierItems as $item) {
             $supplierPivotData[$item['supplier_id']] = [
-                'purchase_price' => $item['purchase_price'],
+                'purchase_price'       => $item['purchase_price'],
+                'freight_percent'      => $item['freight_percent'] ?? 5.00,
                 'supplier_product_url' => $item['supplier_product_url'] ?? null,
             ];
         }

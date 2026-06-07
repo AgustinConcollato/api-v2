@@ -56,24 +56,55 @@ class ClientService
     }
 
     /**
-     * Summary of getClients
-     * @return \Illuminate\Database\Eloquent\Collection<int, Client>
+     * Lista paginada de clientes con stats agregados.
+     * Soporta: search (name/email/phone), sort_by, sort_order, per_page, page.
      */
-    public function getClients(): Collection
+    public function getClients(array $filters = [])
     {
-        $clients = Client::query()
+        $search    = $filters['search'] ?? '';
+        $perPage   = min((int) ($filters['per_page'] ?? 20), 100);
+        $sortOrder = strtolower($filters['sort_order'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
+
+        $allowedSortFields = [
+            'name'         => 'name',
+            'total_spent'  => 'total_spent_sum',
+            'balance_due'  => 'balance_approx',
+            'last_order_at'=> 'last_order_at',
+            'total_orders' => 'orders_count',
+        ];
+        $sortColumn = $allowedSortFields[$filters['sort_by'] ?? ''] ?? 'name';
+
+        $query = Client::query()
             ->with('priceList')
-            ->withCount('orders') // orders_count = todos los pedidos
+            ->withCount('orders')
             ->withCount(['orders as valid_orders_count' => fn($q) => $q->where('status', '!=', 'cancelled')])
             ->withSum(['orders as total_spent_sum' => fn($q) => $q->where('status', '!=', 'cancelled')], 'final_total_amount')
             ->withMax(['orders as last_order_at' => fn($q) => $q->where('status', '!=', 'cancelled')], 'created_at')
+            ->withCount(['orders as pending_count'    => fn($q) => $q->where('status', 'pending')])
+            ->withCount(['orders as processing_count' => fn($q) => $q->where('status', 'processing')])
+            ->withCount(['orders as confirmed_count'  => fn($q) => $q->where('status', 'confirmed')])
             ->addSelect(['total_paid_sum' => Payment::query()
                 ->selectRaw('COALESCE(SUM(payments.amount), 0)')
                 ->join('orders', 'orders.id', '=', 'payments.order_id')
                 ->whereColumn('orders.client_id', 'clients.id')
                 ->where('orders.status', '!=', 'cancelled')
-                ->where('payments.status', 'completed')])
-            ->get();
+                ->where('payments.status', 'completed')]);
+
+        if ($search !== '') {
+            $query->where(fn($q) => $q
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%")
+                ->orWhere('phone', 'like', "%{$search}%")
+            );
+        }
+
+        if ($sortColumn === 'balance_approx') {
+            $query->orderByRaw('(COALESCE(total_spent_sum, 0) - COALESCE(total_paid_sum, 0)) ' . $sortOrder);
+        } else {
+            $query->orderBy($sortColumn, $sortOrder);
+        }
+
+        $clients = $query->paginate($perPage);
 
         $clients->each(function ($client) {
             $totalSpent  = (float) ($client->total_spent_sum ?? 0);
@@ -94,9 +125,21 @@ class ClientService
                 'avg_order_value' => $validCount > 0 ? round($totalSpent / $validCount, 2) : 0,
                 'last_order_at'   => $lastOrderAt,
                 'segment'         => $segment,
+                'pending_count'    => (int) $client->pending_count,
+                'processing_count' => (int) $client->processing_count,
+                'confirmed_count'  => (int) $client->confirmed_count,
             ]);
 
-            $client->makeHidden(['total_spent_sum', 'total_paid_sum', 'valid_orders_count', 'orders_count', 'last_order_at']);
+            $client->makeHidden([
+                'total_spent_sum',
+                'total_paid_sum',
+                'valid_orders_count',
+                'orders_count',
+                'last_order_at',
+                'pending_count',
+                'processing_count',
+                'confirmed_count',
+            ]);
         });
 
         return $clients;
@@ -194,6 +237,22 @@ class ClientService
             ->take(10)
             ->values();
 
+        $topProductsByOrders = $validOrders
+            ->flatMap(fn($order) => $order->details->map(fn($d) => [
+                'order_id' => $order->id,
+                'detail'   => $d,
+            ]))
+            ->groupBy(fn($item) => $item['detail']->product_id)
+            ->map(fn($items) => [
+                'product_id'   => $items->first()['detail']->product_id,
+                'product_name' => $items->first()['detail']->product?->name ?? 'Producto eliminado',
+                'order_count'  => $items->pluck('order_id')->unique()->count(),
+                'image'        => $items->first()['detail']->product?->images->first()?->thumbnail_path ?? null,
+            ])
+            ->sortByDesc('order_count')
+            ->take(10)
+            ->values();
+
         $revenueByMonth = $validOrders
             ->groupBy(fn($o) => Carbon::parse($o->created_at)->format('Y-m'))
             ->map(fn($orders, $month) => [
@@ -205,9 +264,10 @@ class ClientService
             ->values();
 
         return array_merge($client->toArray(), [
-            'stats'            => $stats,
-            'top_products'     => $topProducts,
-            'revenue_by_month' => $revenueByMonth,
+            'stats'                  => $stats,
+            'top_products'           => $topProducts,
+            'top_products_by_orders' => $topProductsByOrders,
+            'revenue_by_month'       => $revenueByMonth,
         ]);
     }
 

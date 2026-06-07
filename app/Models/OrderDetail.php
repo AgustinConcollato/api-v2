@@ -21,6 +21,7 @@ class OrderDetail extends Model
         'discount_fixed_amount',
         'subtotal',
         'subtotal_with_discount',
+        'freight_per_unit'
     ];
 
     /**

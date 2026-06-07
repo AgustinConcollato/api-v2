@@ -19,10 +19,12 @@ class ClientController
         $this->clientService = $clientService;
     }
 
-    public function index()
+    public function index(Request $request)
     {
         try {
-            $clients = $this->clientService->getClients();
+            $clients = $this->clientService->getClients(
+                $request->only(['search', 'sort_by', 'sort_order', 'per_page', 'page'])
+            );
 
             return response()->json($clients);
         } catch (\Exception $e) {

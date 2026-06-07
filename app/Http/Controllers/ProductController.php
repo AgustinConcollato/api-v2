@@ -117,6 +117,7 @@ class ProductController
             'suppliers' => 'nullable|array',
             'suppliers.*.supplier_id' => 'required|uuid|exists:suppliers,id',
             'suppliers.*.purchase_price' => 'required|numeric|min:0',
+            'suppliers.*.freight_percent' => 'nullable|numeric|min:0|max:100',
             'suppliers.*.supplier_product_url' => 'nullable|url|max:512',
         ];
 
@@ -539,6 +540,7 @@ class ProductController
             'suppliers' => 'array', // Permite array vacío para poder desasociar todos los proveedores
             'suppliers.*.supplier_id' => 'required|uuid|exists:suppliers,id', // 'uuid' si usas UUIDs
             'suppliers.*.purchase_price' => 'required|numeric|min:0',
+            'suppliers.*.freight_percent' => 'nullable|numeric|min:0|max:100',
             'suppliers.*.supplier_product_url' => 'nullable|url|max:512',
 
             'price_lists' => 'nullable|array',

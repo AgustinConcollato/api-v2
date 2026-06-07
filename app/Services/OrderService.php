@@ -136,17 +136,25 @@ class OrderService
                 ]);
             }
 
+            // Calcular freight_per_unit: viene del request o se toma del primer proveedor del producto
+            $freightPercent = isset($item['freight_percent'])
+                ? (float) $item['freight_percent']
+                : (float) ($product->load('suppliers')->suppliers->first()?->pivot->freight_percent ?? 5.00);
+            $freightPerUnit = round((float) $item['purchase_price'] * $freightPercent / 100, 2);
+
             // Crear o actualizar detalle
             if ($detail) {
                 $detail->quantity = $newTotalQuantity;
                 $detail->unit_price = $item['unit_price'];
                 $detail->purchase_price = $item['purchase_price'];
+                $detail->freight_per_unit = $freightPerUnit;
             } else {
                 $detail = $order->details()->create([
                     'product_id' => $product->id,
                     'variant_id' => $variantId,
                     'quantity' => $quantityToAdd,
                     'purchase_price' => $item['purchase_price'],
+                    'freight_per_unit' => $freightPerUnit,
                     'unit_price' => $item['unit_price'],
                     'discount_percentage' => 0.00,
                     'discount_fixed_amount' => 0.00,
@@ -349,6 +357,13 @@ class OrderService
                 if (isset($data[$field])) {
                     $detail->{$field} = $data[$field];
                 }
+            }
+            // Recalcular freight_per_unit si cambió purchase_price o freight_percent
+            if (isset($data['purchase_price']) || isset($data['freight_percent'])) {
+                $freightPercent = isset($data['freight_percent'])
+                    ? (float) $data['freight_percent']
+                    : (float) ($product->load('suppliers')->suppliers->first()?->pivot->freight_percent ?? 5.00);
+                $detail->freight_per_unit = round((float) $detail->purchase_price * $freightPercent / 100, 2);
             }
 
             // 4. RECALCULAR PROMOCIÓN (Punto clave corregido)
