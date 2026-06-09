@@ -146,12 +146,15 @@ class WholesaleService
                 $subtotal = $item['quantity'] * $item['unit_price'];
                 $subtotalWithDiscount = ($subtotal - $discFixed) * (1 - $discPct / 100);
 
+                $freightPerUnit = round($item['purchase_price'] * $item['freight_percent'] / 100, 2);
+
                 OrderDetail::create([
                     'order_id'               => $order->id,
                     'product_id'             => $item['product_id'],
                     'variant_id'             => $item['variant_id'],
                     'quantity'               => $item['quantity'],
                     'purchase_price'         => $item['purchase_price'],
+                    'freight_per_unit'       => $freightPerUnit,
                     'unit_price'             => $item['unit_price'],
                     'discount_percentage'    => $discPct,
                     'discount_fixed_amount'  => $discFixed,

@@ -83,7 +83,6 @@ class OrderService
         // Transformamos los resultados dentro del servicio antes de devolverlos
         $orders->getCollection()->transform(function ($order) {
             $order->balance_due = $this->getPendingBalance($order);
-            $order->total_cost = $order->getTotalCostAttribute();
             return $order;
         });
 
@@ -476,10 +475,16 @@ class OrderService
         $finalTotal *= (1 - ($order->discount_percentage / 100));
         $finalTotal += $order->shipping_cost;
 
-        // 3. ACTUALIZAR LA ORDEN
+        // 3. CALCULAR COSTO DE MERCADERÍA
+        $totalCost = (float) ($order->details()->sum(
+            DB::raw('(purchase_price + freight_per_unit) * quantity')
+        ) ?? 0);
+
+        // 4. ACTUALIZAR LA ORDEN
         $order->update([
-            'total_amount' => $totalAmount,
+            'total_amount'       => $totalAmount,
             'final_total_amount' => max(0, $finalTotal),
+            'total_cost'         => $totalCost,
         ]);
     }
 

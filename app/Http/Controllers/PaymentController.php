@@ -77,7 +77,6 @@ class PaymentController
             $order->refresh();
             $order->load('payments', 'client', 'details');
             $order->balance_due = $this->orderService->getPendingBalance($order);
-            $order->total_cost  = $order->getTotalCostAttribute();
 
             return response()->json([
                 'payment' => $payment,

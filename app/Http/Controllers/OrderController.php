@@ -163,7 +163,6 @@ class OrderController
 
         // Añadir saldo pendiente a la respuesta usando el servicio
         $order->balance_due = $this->orderService->getPendingBalance($order);
-        $order->total_cost = $order->getTotalCostAttribute();
 
         return response()->json($order);
     }

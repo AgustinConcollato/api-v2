@@ -26,6 +26,7 @@ class Order extends Model
         'delivery_method',
         'notes',
         'price_list_id',
+        'total_cost',
     ];
 
     protected $casts = [
@@ -120,14 +121,4 @@ class Order extends Model
         );
     }
 
-    /**
-     * Costo del pedido
-     */
-    public function getTotalCostAttribute()
-    {
-        // Suma el precio de compra * cantidad de cada detalle
-        return $this->details->sum(function ($detail) {
-            return ($detail->purchase_price + $detail->freight_per_unit) * $detail->quantity;
-        });
-    }
 }
