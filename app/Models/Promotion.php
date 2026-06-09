@@ -35,12 +35,25 @@ class Promotion extends Model
         'min_quantity' => 'integer',
     ];
 
-    /**
-     * Promoción aplicada sobre muchos productos.
-     */
     public function products(): BelongsToMany
     {
-        return $this->belongsToMany(Product::class, 'promotion_product');
+        return $this->belongsToMany(Product::class, 'promotion_product')
+            ->withPivot(['discount_type', 'discount_value', 'max_discount_amount', 'min_quantity'])
+            ->withTimestamps();
+    }
+
+    /**
+     * Resuelve las condiciones efectivas para un producto, aplicando sus overrides del pivot
+     * si los tiene, o heredando las de la promo (patrón plan-suscriptor).
+     */
+    public function getEffectiveConditions(?object $pivot = null): array
+    {
+        return [
+            'discount_type'       => $pivot?->discount_type       ?? $this->discount_type,
+            'discount_value'      => $pivot?->discount_value      ?? $this->discount_value,
+            'max_discount_amount' => $pivot?->max_discount_amount ?? $this->max_discount_amount,
+            'min_quantity'        => $pivot?->min_quantity        ?? $this->min_quantity,
+        ];
     }
 
     /**

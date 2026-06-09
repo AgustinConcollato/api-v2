@@ -287,14 +287,17 @@ class ProductController
             )
             : $product->promotions;
 
-        $product->setRelation('promotions', $promotions->map(fn($p) => [
-            'discount_type'       => $p->discount_type,
-            'discount_value'      => (float) $p->discount_value,
-            'max_discount_amount' => $p->max_discount_amount ? (float) $p->max_discount_amount : null,
-            'min_quantity'        => $p->min_quantity,
-            'ends_at'              => $p->ends_at,
-            'price_list_ids'      => $p->priceLists->pluck('id')->toArray(),
-        ])->values());
+        $product->setRelation('promotions', $promotions->map(function ($p) {
+            $cond = $p->getEffectiveConditions($p->pivot);
+            return [
+                'discount_type'       => $cond['discount_type'],
+                'discount_value'      => (float) $cond['discount_value'],
+                'max_discount_amount' => $cond['max_discount_amount'] !== null ? (float) $cond['max_discount_amount'] : null,
+                'min_quantity'        => $cond['min_quantity'],
+                'ends_at'             => $p->ends_at,
+                'price_list_ids'      => $p->priceLists->pluck('id')->toArray(),
+            ];
+        })->values());
 
         return response()->json($product);
     }

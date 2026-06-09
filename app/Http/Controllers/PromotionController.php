@@ -183,24 +183,31 @@ class PromotionController
 
     /**
      * Asocia productos a la promoción (reemplaza los actuales).
-     * Un producto no puede estar en más de una promoción.
+     * Cada producto puede tener overrides opcionales de condiciones.
      */
     public function syncProducts(Request $request, Promotion $promotion)
     {
         $rules = [
-            // `present` exige que llegue el campo, pero permite array vacío ([])
-            'product_ids' => 'present|array',
-            'product_ids.*' => 'uuid|exists:products,id',
+            'products'                       => 'present|array',
+            'products.*.id'                  => 'required|uuid|exists:products,id',
+            'products.*.discount_type'       => 'nullable|in:percentage,fixed_amount,second_unit_percentage',
+            'products.*.discount_value'      => 'nullable|numeric|min:0',
+            'products.*.max_discount_amount' => 'nullable|numeric|min:0',
+            'products.*.min_quantity'        => 'nullable|integer|min:1',
         ];
 
         $messages = [
-            'product_ids.present' => 'Debes enviar el campo product_ids (puede ser array vacío para quitar todos).',
-            'product_ids.*.exists' => 'Uno de los productos no existe.',
+            'products.present'               => 'Debes enviar el campo products (puede ser array vacío para quitar todos).',
+            'products.*.id.required'         => 'Cada producto debe tener un id.',
+            'products.*.id.exists'           => 'Uno de los productos no existe.',
+            'products.*.discount_type.in'    => 'El tipo de descuento debe ser: percentage, fixed_amount o second_unit_percentage.',
+            'products.*.discount_value.min'  => 'El valor de descuento debe ser al menos 0.',
+            'products.*.min_quantity.min'    => 'La cantidad mínima debe ser al menos 1.',
         ];
 
         try {
             $validated = $request->validate($rules, $messages);
-            $promotion = $this->promotionService->syncProducts($promotion, $validated['product_ids']);
+            $promotion = $this->promotionService->syncProducts($promotion, $validated['products']);
             return response()->json($promotion);
         } catch (ValidationException $e) {
             return response()->json($e->errors(), 422);

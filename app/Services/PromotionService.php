@@ -139,11 +139,21 @@ class PromotionService
 
     /**
      * Asocia productos a la promoción (reemplaza los actuales).
+     * Cada item puede tener overrides opcionales de condiciones (patrón plan-suscriptor).
      * Un producto no puede estar en más de una promoción.
+     *
+     * @param array $products  Array de ['id' => uuid, ...overrides opcionales]
      */
-    public function syncProducts(Promotion $promotion, array $productIds)
+    public function syncProducts(Promotion $promotion, array $products): Promotion
     {
-        $promotion->products()->sync($productIds);
+        $overrideFields = ['discount_type', 'discount_value', 'max_discount_amount', 'min_quantity'];
+
+        $syncData = collect($products)->mapWithKeys(function ($item) use ($overrideFields) {
+            $overrides = collect($item)->only($overrideFields)->filter(fn($v) => $v !== null)->all();
+            return [$item['id'] => $overrides];
+        })->all();
+
+        $promotion->products()->sync($syncData);
         return $promotion->load('products:id,name,sku');
     }
 

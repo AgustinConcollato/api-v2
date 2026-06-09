@@ -504,7 +504,13 @@ class OrderService
     ): array {
         $promotion = $this->findApplicablePromotion($order, $product);
 
-        if (!$promotion || $quantity < $promotion->min_quantity) {
+        if (!$promotion) {
+            return [0.0, 0.0, null];
+        }
+
+        $conditions = $promotion->getEffectiveConditions($promotion->pivot ?? null);
+
+        if ($quantity < $conditions['min_quantity']) {
             return [0.0, 0.0, null];
         }
 
@@ -512,23 +518,22 @@ class OrderService
         $discountPercentage = 0.0;
         $discountFixed = 0.0;
 
-        switch ($promotion->discount_type) {
+        switch ($conditions['discount_type']) {
             case 'percentage':
-                $baseDiscount = $subtotal * ($promotion->discount_value / 100);
+                $baseDiscount = $subtotal * ($conditions['discount_value'] / 100);
 
-                if ($promotion->max_discount_amount !== null && $baseDiscount > $promotion->max_discount_amount) {
-                    // Se aplica el tope como monto fijo
-                    $discountFixed = $promotion->max_discount_amount;
+                if ($conditions['max_discount_amount'] !== null && $baseDiscount > $conditions['max_discount_amount']) {
+                    $discountFixed = $conditions['max_discount_amount'];
                 } else {
-                    $discountPercentage = $promotion->discount_value;
+                    $discountPercentage = $conditions['discount_value'];
                 }
                 break;
 
             case 'fixed_amount':
-                $discountFixed = min($promotion->discount_value, $subtotal);
+                $discountFixed = min($conditions['discount_value'], $subtotal);
 
-                if ($promotion->max_discount_amount !== null && $discountFixed > $promotion->max_discount_amount) {
-                    $discountFixed = $promotion->max_discount_amount;
+                if ($conditions['max_discount_amount'] !== null && $discountFixed > $conditions['max_discount_amount']) {
+                    $discountFixed = $conditions['max_discount_amount'];
                 }
                 break;
 
@@ -536,10 +541,10 @@ class OrderService
                 // Para cada par de unidades, la segunda tiene X% de descuento
                 $pairs = intdiv($quantity, 2);
                 if ($pairs > 0) {
-                    $baseDiscount = $pairs * $unitPrice * ($promotion->discount_value / 100);
+                    $baseDiscount = $pairs * $unitPrice * ($conditions['discount_value'] / 100);
 
-                    if ($promotion->max_discount_amount !== null && $baseDiscount > $promotion->max_discount_amount) {
-                        $discountFixed = $promotion->max_discount_amount;
+                    if ($conditions['max_discount_amount'] !== null && $baseDiscount > $conditions['max_discount_amount']) {
+                        $discountFixed = $conditions['max_discount_amount'];
                     } else {
                         $discountFixed = $baseDiscount;
                     }
