@@ -15,12 +15,7 @@ use Illuminate\Support\Facades\Password as FacadesPassword;
 
 class UserController
 {
-    protected $userService;
-
-    public function __construct(UserService $userService)
-    {
-        $this->userService = $userService;
-    }
+    public function __construct(private UserService $userService) {}
 
     public function auth(Request $request)
     {

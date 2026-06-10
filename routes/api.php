@@ -30,7 +30,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [UserController::class, 'logout']);
 
     Route::prefix('products')->group(function () {
-        Route::post('/', [ProductController::class, 'createProduct']);
+        Route::post('/', [ProductController::class, 'store']);
         Route::post('/add-prices/{product}', [ProductController::class, 'addPrices']);
         Route::post('/{product}/barcode', [ProductController::class, 'storeBarcode']);
         Route::post('/{product}/images', [ProductController::class, 'addImages']);
@@ -83,8 +83,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::prefix('clients')->group(function () {
         Route::get('/', [ClientController::class, 'index']);
         Route::get('/{client}', [ClientController::class, 'show']);
-        Route::post('/', [ClientController::class, 'create']);
-        Route::put('/{client}', [ClientController::class, 'edit']);
+        Route::post('/', [ClientController::class, 'store']);
+        Route::put('/{client}', [ClientController::class, 'update']);
         Route::delete('/{client}', [ClientController::class, 'destroy']);
     });
 

@@ -70,6 +70,11 @@ class Order extends Model
         return in_array($newStatus, $allowed);
     }
 
+    public function scopePending($query)
+    {
+        return $query->where('status', OrderStatus::Pending);
+    }
+
     /**
      * Un Pedido pertenece a un Cliente.
      */

@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\OrderStatus;
-use App\Enums\ProductStatus;
 use App\Exceptions\InsufficientStockException;
 use App\Models\Client;
 use App\Models\Order;
@@ -42,7 +41,7 @@ class WholesaleService
                     'suppliers',
                 ])
                 ->where('id', $productId)
-                ->where('status', ProductStatus::Published)
+                ->published()
                 ->first();
 
             if (!$product) {

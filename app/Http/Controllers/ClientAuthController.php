@@ -2,6 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\LoginClientRequest;
+use App\Http\Requests\RegisterClientRequest;
+use App\Http\Requests\RegisterFromOrderRequest;
+use App\Http\Requests\UpdateProfileRequest;
+use App\Http\Resources\ClientResource;
 use App\Models\Client;
 use App\Models\Order;
 use Illuminate\Http\Request;
@@ -9,12 +14,9 @@ use Illuminate\Support\Facades\Hash;
 
 class ClientAuthController
 {
-    public function login(Request $request)
+    public function login(LoginClientRequest $request)
     {
-        $data = $request->validate([
-            'email'    => 'required|email',
-            'password' => 'required|string',
-        ]);
+        $data = $request->validated();
 
         $client = Client::where('email', $data['email'])->first();
 
@@ -32,7 +34,7 @@ class ClientAuthController
 
         return response()->json([
             'token'  => $token,
-            'client' => $this->clientData($client),
+            'client' => new ClientResource($client),
         ]);
     }
 
@@ -44,43 +46,20 @@ class ClientAuthController
 
     public function me(Request $request)
     {
-        return response()->json($this->clientData($request->user('client')));
+        return new ClientResource($request->user('client'));
     }
 
-    public function updateProfile(Request $request)
+    public function updateProfile(UpdateProfileRequest $request)
     {
-        $data = $request->validate([
-            'name'  => 'required|string|max:255',
-            'phone' => 'required|string|max:50',
-        ]);
-
         $client = $request->user('client');
-        $client->update([
-            'name'  => $data['name'],
-            'phone' => $data['phone'],
-        ]);
+        $client->update($request->validated());
 
-        return response()->json($this->clientData($client));
+        return new ClientResource($client);
     }
 
-    public function registerFromOrder(Request $request)
+    public function registerFromOrder(RegisterFromOrderRequest $request)
     {
-
-        $rules = [
-            'order_id' => 'required|uuid|exists:orders,id',
-            'password' => 'required|string|min:8',
-        ];
-
-        $params = [
-            'order_id.required' => 'El identificador del pedido es obligatorio.',
-            'order_id.uuid'     => 'El formato del identificador de pedido no es válido.',
-            'order_id.exists'   => 'El pedido seleccionado no existe en nuestro sistema.',
-            'password.required' => 'Es necesario que establezcas una contraseña para crear tu cuenta.',
-            'password.string'   => 'La contraseña debe ser una cadena de texto válida.',
-            'password.min'      => 'Tu contraseña debe tener al menos 8 caracteres.',
-        ];
-
-        $data = $request->validate($rules, $params);
+        $data = $request->validated();
 
         $order = Order::find($data['order_id']);
 
@@ -106,19 +85,13 @@ class ClientAuthController
 
         return response()->json([
             'token'  => $token,
-            'client' => $this->clientData($client),
+            'client' => new ClientResource($client),
         ], 201);
     }
 
-    public function register(Request $request)
+    public function register(RegisterClientRequest $request)
     {
-        $data = $request->validate([
-            'name'          => 'required|string|max:255',
-            'email'         => 'required|email|max:255',
-            'phone'         => 'required|string|max:50',
-            'password'      => 'required|string|min:8',
-            'price_list_id' => 'nullable|integer|in:2,3',
-        ]);
+        $data = $request->validated();
 
         $client = Client::where('email', $data['email'])->first();
 
@@ -149,37 +122,7 @@ class ClientAuthController
 
         return response()->json([
             'token'  => $token,
-            'client' => $this->clientData($client),
+            'client' => new ClientResource($client),
         ], 201);
-    }
-
-    private function clientData(Client $client): array
-    {
-        $client->loadMissing('addresses');
-
-        return [
-            'id'            => $client->id,
-            'name'          => $client->name,
-            'email'         => $client->email,
-            'phone'         => $client->phone,
-            'price_list_id' => $client->price_list_id,
-            'addresses'     => $client->addresses->map(fn($a) => $this->addressData($a))->all(),
-        ];
-    }
-
-    private function addressData($address): array
-    {
-        return [
-            'id'            => $address->id,
-            'label'         => $address->label,
-            'street'        => $address->street,
-            'street_number' => $address->street_number,
-            'floor'         => $address->floor,
-            'apartment'     => $address->apartment,
-            'locality'      => $address->locality,
-            'province'      => $address->province,
-            'postal_code'   => $address->postal_code,
-            'is_default'    => (bool) $address->is_default,
-        ];
     }
 }

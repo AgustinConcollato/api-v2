@@ -91,6 +91,11 @@ class Product extends Model
      * @param int $priceListId
      * @return float|null
      */
+    public function scopePublished($query)
+    {
+        return $query->where('status', ProductStatus::Published);
+    }
+
     public function getPriceByListId(int $priceListId): ?float
     {
         // 1. Usar la relación priceLists()

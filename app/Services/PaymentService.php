@@ -10,6 +10,8 @@ use App\Models\Payment;
 
 class PaymentService
 {
+    public function __construct(private OrderService $orderService) {}
+
     /**
      * Procesa y registra un nuevo pago para un pedido.
      * @param Order $order El pedido al que se aplica el pago.
@@ -18,8 +20,7 @@ class PaymentService
      */
     public function processPayment(Order $order, array $data): Payment
     {
-        $orderService = new OrderService();
-        $pendingBalance = $orderService->getPendingBalance($order);
+        $pendingBalance = $this->orderService->getPendingBalance($order);
         $amountPaid = $data['amount'];
 
         if ($amountPaid <= 0) {
@@ -41,7 +42,7 @@ class PaymentService
             'payment_date' => now(),
         ]);
 
-        if ($orderService->getPendingBalance($order) <= 0 && $order->status == 'pending') {
+        if ($this->orderService->getPendingBalance($order) <= 0 && $order->status == 'pending') {
             $order->update(['status' => OrderStatus::Confirmed]);
         }
 

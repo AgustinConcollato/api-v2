@@ -267,7 +267,7 @@ class ProductService
         }
 
         // Solo productos publicados
-        $query->where('status', '=', ProductStatus::Published);
+        $query->published();
 
         // 2. Filtro por categoría (puede ser array o single)
         if (isset($filters['category_id'])) {

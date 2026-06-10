@@ -2,19 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreBarcodeVariantRequest;
+use App\Http\Requests\StoreVariantRequest;
+use App\Http\Requests\UpdateVariantRequest;
 use App\Models\Category;
 use App\Models\CategoryAttribute;
 use App\Models\Product;
 use App\Models\ProductBarcode;
 use App\Models\ProductVariant;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 
 class ProductVariantController
 {
-    /**
-     * Busca variantes por SKU. Devuelve variante + producto (para buscadores).
-     */
     public function search(Request $request)
     {
         $q = trim($request->query('q', ''));
@@ -37,9 +36,6 @@ class ProductVariantController
         return response()->json($variants);
     }
 
-    /**
-     * Returns variants + the deepest category's attributes (for the form).
-     */
     public function index(Product $product)
     {
         $variants = $product->variants()
@@ -49,119 +45,84 @@ class ProductVariantController
         $categoryAttributes = $this->getDeepestCategoryAttributes($product);
 
         return response()->json([
-            'variants'           => $variants,
+            'variants'            => $variants,
             'category_attributes' => $categoryAttributes,
         ]);
     }
 
-    public function store(Request $request, Product $product)
+    public function store(StoreVariantRequest $request, Product $product)
     {
+        $validated = $request->validated();
+
         try {
-            $validated = $request->validate([
-                'sku'              => 'required|string|max:100|unique:product_variants,sku',
-                'stock'            => 'required|integer|min:0',
-                'is_active'        => 'boolean',
-                'attribute_values' => 'array',
-                'attribute_values.*.category_attribute_id' => 'required|integer|exists:category_attributes,id',
-                'attribute_values.*.value'                 => 'required|string|max:255',
-            ]);
-
             $this->validateAttributeValues($product, $validated['attribute_values'] ?? []);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
 
-            $variant = $product->variants()->create([
-                'sku'       => $validated['sku'],
-                'stock'     => $validated['stock'],
-                'is_active' => $validated['is_active'] ?? true,
+        $variant = $product->variants()->create([
+            'sku'       => $validated['sku'],
+            'stock'     => $validated['stock'],
+            'is_active' => $validated['is_active'] ?? true,
+        ]);
+
+        foreach ($validated['attribute_values'] ?? [] as $av) {
+            $variant->attributeValues()->create([
+                'category_attribute_id' => $av['category_attribute_id'],
+                'value'                 => $av['value'],
             ]);
+        }
 
-            foreach ($validated['attribute_values'] ?? [] as $av) {
+        return response()->json($variant->load(['attributeValues.categoryAttribute.options', 'barcodes']), 201);
+    }
+
+    public function update(UpdateVariantRequest $request, Product $product, ProductVariant $variant)
+    {
+        if ($variant->product_id !== $product->id) {
+            return response()->json(['error' => 'La variante no pertenece a este producto.'], 403);
+        }
+
+        $validated = $request->validated();
+
+        try {
+            $this->validateAttributeValues($product, $validated['attribute_values'] ?? []);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
+        $variant->update([
+            'sku'       => $validated['sku'],
+            'stock'     => $validated['stock'],
+            'is_active' => $validated['is_active'] ?? $variant->is_active,
+        ]);
+
+        if (isset($validated['attribute_values'])) {
+            $variant->attributeValues()->delete();
+            foreach ($validated['attribute_values'] as $av) {
                 $variant->attributeValues()->create([
                     'category_attribute_id' => $av['category_attribute_id'],
                     'value'                 => $av['value'],
                 ]);
             }
-
-            return response()->json($variant->load(['attributeValues.categoryAttribute.options', 'barcodes']), 201);
-        } catch (ValidationException $e) {
-            return response()->json([$e->errors()], 422);
-        } catch (\InvalidArgumentException $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'No se pudo crear la variante.', 'message' => $e->getMessage()], 500);
         }
+
+        return response()->json($variant->load(['attributeValues.categoryAttribute.options', 'barcodes']));
     }
 
-    public function update(Request $request, Product $product, ProductVariant $variant)
+    public function storeBarcode(StoreBarcodeVariantRequest $request, Product $product, ProductVariant $variant)
     {
         if ($variant->product_id !== $product->id) {
             return response()->json(['error' => 'La variante no pertenece a este producto.'], 403);
         }
 
-        try {
-            $validated = $request->validate([
-                'sku'              => 'required|string|max:100|unique:product_variants,sku,' . $variant->id,
-                'stock'            => 'required|integer|min:0',
-                'is_active'        => 'boolean',
-                'attribute_values' => 'array',
-                'attribute_values.*.category_attribute_id' => 'required|integer|exists:category_attributes,id',
-                'attribute_values.*.value'                 => 'required|string|max:255',
-            ]);
+        $barcode = ProductBarcode::create([
+            'product_id' => $product->id,
+            'variant_id' => $variant->id,
+            'barcode'    => $request->validated()['barcode'],
+            'is_primary' => false,
+        ]);
 
-            $this->validateAttributeValues($product, $validated['attribute_values'] ?? []);
-
-            $variant->update([
-                'sku'       => $validated['sku'],
-                'stock'     => $validated['stock'],
-                'is_active' => $validated['is_active'] ?? $variant->is_active,
-            ]);
-
-            if (isset($validated['attribute_values'])) {
-                $variant->attributeValues()->delete();
-                foreach ($validated['attribute_values'] as $av) {
-                    $variant->attributeValues()->create([
-                        'category_attribute_id' => $av['category_attribute_id'],
-                        'value'                 => $av['value'],
-                    ]);
-                }
-            }
-
-            return response()->json($variant->load(['attributeValues.categoryAttribute.options', 'barcodes']));
-        } catch (ValidationException $e) {
-            return response()->json([$e->errors()], 422);
-        } catch (\InvalidArgumentException $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'No se pudo actualizar la variante.', 'message' => $e->getMessage()], 500);
-        }
-    }
-
-    public function storeBarcode(Request $request, Product $product, ProductVariant $variant)
-    {
-        if ($variant->product_id !== $product->id) {
-            return response()->json(['error' => 'La variante no pertenece a este producto.'], 403);
-        }
-
-        try {
-            $validated = $request->validate([
-                'barcode' => 'required|string|max:255|unique:product_barcodes,barcode',
-            ], [
-                'barcode.required' => 'El código de barras es obligatorio.',
-                'barcode.unique'   => 'Este código de barras ya está registrado.',
-            ]);
-
-            $barcode = ProductBarcode::create([
-                'product_id' => $product->id,
-                'variant_id' => $variant->id,
-                'barcode'    => $validated['barcode'],
-                'is_primary' => false,
-            ]);
-
-            return response()->json($barcode, 201);
-        } catch (ValidationException $e) {
-            return response()->json([$e->errors()], 422);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'No se pudo agregar el código de barras.'], 500);
-        }
+        return response()->json($barcode, 201);
     }
 
     public function destroy(Product $product, ProductVariant $variant)
@@ -170,12 +131,8 @@ class ProductVariantController
             return response()->json(['error' => 'La variante no pertenece a este producto.'], 403);
         }
 
-        try {
-            $variant->delete();
-            return response()->json(null, 204);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'No se pudo eliminar la variante.', 'message' => $e->getMessage()], 500);
-        }
+        $variant->delete();
+        return response()->json(null, 204);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

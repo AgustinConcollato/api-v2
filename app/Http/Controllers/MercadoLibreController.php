@@ -8,12 +8,7 @@ use Illuminate\Validation\ValidationException;
 
 class MercadoLibreController
 {
-    protected MercadoLibreService $mlService;
-
-    public function __construct(MercadoLibreService $mlService)
-    {
-        $this->mlService = $mlService;
-    }
+    public function __construct(private MercadoLibreService $mlService) {}
 
     // -------------------------------------------------------------------------
     // AUTH
