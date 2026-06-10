@@ -169,7 +169,6 @@ class ClientService
                 ->where('status', 'completed')
                 ->sum('amount');
             $order->balance_due = max(0, (float) $order->final_total_amount - (float) $paid);
-            $order->total_cost  = $order->getTotalCostAttribute();
         });
 
         // Pedidos válidos: excluyen cancelados (no entran en stats financieras ni de comportamiento)
