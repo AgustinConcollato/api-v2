@@ -22,6 +22,7 @@ class Product extends Model
         'name',
         'description',
         'stock',
+        'stock_updated_at',
         'sku',
         'status'
     ];
@@ -29,6 +30,7 @@ class Product extends Model
     protected $casts = [
         'status' => ProductStatus::class,
         'stock' => 'integer',
+        'stock_updated_at' => 'datetime',
     ];
 
     /**
@@ -94,6 +96,27 @@ class Product extends Model
     public function scopePublished($query)
     {
         return $query->where('status', ProductStatus::Published);
+    }
+
+    /**
+     * Ordena por la fecha de "ingreso" más reciente (alta del producto o última
+     * reposición de stock manual, propia o de alguna de sus variantes activas).
+     */
+    public function scopeOrderByStockEntry($query, string $direction = 'desc')
+    {
+        if (is_null($query->getQuery()->columns)) {
+            $query->select('products.*');
+        }
+
+        return $query->selectRaw("GREATEST(
+                COALESCE(products.stock_updated_at, products.created_at),
+                COALESCE((
+                    SELECT MAX(COALESCE(pv.stock_updated_at, pv.created_at))
+                    FROM product_variants pv
+                    WHERE pv.product_id = products.id AND pv.is_active = 1
+                ), products.created_at)
+            ) as stock_entry_at")
+            ->orderBy('stock_entry_at', $direction);
     }
 
     public function getPriceByListId(int $priceListId): ?float

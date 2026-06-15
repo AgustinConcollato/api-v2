@@ -20,6 +20,7 @@ class Promotion extends Model
         'starts_at',
         'ends_at',
         'is_active',
+        'show_on_web',
         'discount_type',
         'discount_value',
         'max_discount_amount',
@@ -28,6 +29,7 @@ class Promotion extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'show_on_web' => 'boolean',
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
         'discount_value' => 'float',

@@ -16,6 +16,7 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\GeminiAssistantController;
+use App\Http\Controllers\HomeLayoutController;
 use App\Http\Controllers\MercadoLibreController;
 use App\Http\Controllers\WholesaleController;
 use Illuminate\Http\Request;
@@ -24,6 +25,12 @@ use Illuminate\Support\Facades\Route;
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+// Rutas públicas de promociones — deben ir antes del grupo auth para no ser capturadas por /promotions/{promotion}
+Route::get('/promotions/public', [PromotionController::class, 'publicIndex']);
+
+// Layout del home público (config publicada, consumida por la web)
+Route::get('/home-layout', [HomeLayoutController::class, 'publicShow']);
 
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/authentication', [UserController::class, 'auth']);
@@ -125,6 +132,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/{promotion}/price-lists', [PromotionController::class, 'syncPriceLists']);
     });
 
+    Route::prefix('home-layout')->group(function () {
+        Route::get('/media', [HomeLayoutController::class, 'mediaIndex']);
+        Route::post('/media', [HomeLayoutController::class, 'mediaStore']);
+        Route::delete('/media/{id}', [HomeLayoutController::class, 'mediaDestroy']);
+        Route::get('/presets', [HomeLayoutController::class, 'presetsIndex']);
+        Route::post('/presets', [HomeLayoutController::class, 'presetsStore']);
+        Route::put('/presets/{id}', [HomeLayoutController::class, 'presetsUpdate']);
+        Route::post('/presets/{id}/publish', [HomeLayoutController::class, 'presetsPublish']);
+        Route::delete('/presets/{id}', [HomeLayoutController::class, 'presetsDestroy']);
+    });
+
     Route::prefix('/mercado-pago')->group(function () {
         Route::post('/get-token', [AccountMercadoPagoController::class, 'getToken']);
         Route::post('/skip-step', [AccountMercadoPagoController::class, 'skipStep']);
@@ -190,6 +208,8 @@ Route::middleware('auth:client')->group(function () {
 // rutas públicas
 Route::post('/login', [UserController::class, 'login']);
 Route::get('/catalog', [ProductController::class, 'publicIndex']);
+Route::get('/catalog/new-arrivals', [ProductController::class, 'publicNewArrivals']);
+Route::get('/catalog/best-sellers', [ProductController::class, 'publicBestSellers']);
 Route::get('/catalog/{product}', [ProductController::class, 'publicShow']);
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::post('/orders/wholesale', [WholesaleController::class, 'checkout']);

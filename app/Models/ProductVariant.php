@@ -15,11 +15,13 @@ class ProductVariant extends Model
         'product_id',
         'sku',
         'stock',
+        'stock_updated_at',
         'is_active',
     ];
 
     protected $casts = [
         'stock' => 'integer',
+        'stock_updated_at' => 'datetime',
         'is_active' => 'boolean',
     ];
 

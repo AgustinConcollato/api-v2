@@ -98,17 +98,21 @@ class ProductService
                                     ->orWhereHas('barcodes', function ($barcodeQuery) use ($word) {
                                         $barcodeQuery->where('barcode', 'like', '%' . $word . '%');
                                     })
-                                    ->orWhereHas('attributeValues', fn($av) =>
+                                    ->orWhereHas(
+                                        'attributeValues',
+                                        fn($av) =>
                                         $av->where('value', 'like', '%' . $word . '%')
                                     )
                                     ->orWhereHas('variants', function ($vq) use ($word) {
                                         $vq->where('is_active', true)
-                                           ->where(function ($vi) use ($word) {
-                                               $vi->where('sku', 'like', '%' . $word . '%')
-                                                  ->orWhereHas('attributeValues', fn($av) =>
-                                                      $av->where('value', 'like', '%' . $word . '%')
-                                                  );
-                                           });
+                                            ->where(function ($vi) use ($word) {
+                                                $vi->where('sku', 'like', '%' . $word . '%')
+                                                    ->orWhereHas(
+                                                        'attributeValues',
+                                                        fn($av) =>
+                                                        $av->where('value', 'like', '%' . $word . '%')
+                                                    );
+                                            });
                                     });
                             });
                         }
@@ -252,7 +256,10 @@ class ProductService
     public function getPublicProducts(array $filters = [])
     {
         $query = Product::with([
-            'images', 'categories', 'barcodes', 'priceLists',
+            'images',
+            'categories',
+            'barcodes',
+            'priceLists',
             'promotions' => fn($q) => $q->active(),
             'promotions.priceLists',
             'variants' => fn($q) => $q->where('is_active', true)->orderBy('id'),
@@ -281,14 +288,15 @@ class ProductService
         }
 
         // 3. Filtro por rango de stock (incluye productos con stock en variantes)
-        if (isset($filters['stock_min'])) {
-            $query->where(function ($q) use ($filters) {
-                $q->where('stock', '>=', $filters['stock_min'])
-                  ->orWhereHas('variants', fn($vq) =>
-                      $vq->where('is_active', true)->where('stock', '>=', $filters['stock_min'])
-                  );
-            });
-        }
+        $query->where(function ($q){
+            $q->where('stock', '>=', 1)
+                ->orWhereHas(
+                    'variants',
+                    fn($vq) =>
+                    $vq->where('is_active', true)->where('stock', '>=', 1)
+                );
+        });
+
         if (isset($filters['stock_max'])) {
             $query->where('stock', '<=', $filters['stock_max']);
         }
@@ -324,7 +332,7 @@ class ProductService
         $sortOrder = $filters['sort_order'] ?? 'desc';
 
         // Validar que sort_by sea un campo válido
-        $allowedSortFields = ['name', 'stock', 'sku', 'price', 'created_at', 'updated_at'];
+        $allowedSortFields = ['name', 'stock', 'sku', 'price', 'created_at', 'updated_at', 'stock_entry'];
         if (!in_array($sortBy, $allowedSortFields)) {
             $sortBy = 'created_at';
         }
@@ -345,6 +353,8 @@ class ProductService
                     ->limit(1)
             ])
                 ->orderBy('sort_price', $sortOrder);
+        } elseif ($sortBy === 'stock_entry') {
+            $query->orderByStockEntry($sortOrder);
         } else {
             $query->orderBy($sortBy, $sortOrder);
         }
@@ -417,7 +427,7 @@ class ProductService
             ]);
         }
 
-        $product->categories()->sync($categoryIds);        
+        $product->categories()->sync($categoryIds);
         $product->categories;
         return $product;
     }
@@ -816,6 +826,11 @@ class ProductService
             'stock',
             // Agrega aquí cualquier otro campo simple que pueda actualizarse
         ]);
+
+        // Si se repone stock manualmente, registrar la fecha de "ingreso"
+        if (array_key_exists('stock', $updatableData) && $updatableData['stock'] > $product->stock) {
+            $updatableData['stock_updated_at'] = now();
+        }
 
         // 2. Aplicar la actualización
         $product->update($updatableData);

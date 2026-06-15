@@ -35,6 +35,7 @@ class PromotionService
             'starts_at',
             'ends_at',
             'is_active',
+            'show_on_web',
             'discount_type',
             'discount_value',
             'max_discount_amount',
@@ -93,6 +94,7 @@ class PromotionService
             'starts_at',
             'ends_at',
             'is_active',
+            'show_on_web',
             'discount_type',
             'discount_value',
             'max_discount_amount',
@@ -165,5 +167,46 @@ class PromotionService
     {
         $promotion->priceLists()->sync($priceListIds);
         return $promotion->load('priceLists:id,name');
+    }
+
+    /**
+     * Retorna promociones activas con show_on_web=true para la home pública.
+     * Carga productos con imágenes y listas de precios asociadas a la promo.
+     */
+    public function publicIndex(?int $priceListId = null): \Illuminate\Database\Eloquent\Collection
+    {
+        $promotions = Promotion::active()
+            ->where('show_on_web', true)
+            ->with([
+                'priceLists:id,name',
+                'products' => fn($q) => $q->published()->with([
+                    'images',
+                    'priceLists',
+                    'promotions' => fn($pq) => $pq->active(),
+                    'promotions.priceLists',
+                    'variants' => fn($vq) => $vq->where('is_active', true)->with('images', 'attributeValues.categoryAttribute'),
+                ]),
+            ])
+            ->get();
+
+        $promotions = $promotions->filter(function ($promo) {
+            $inStockProducts = $promo->products->filter(function ($product) {
+                return $product->stock > 0
+                    || $product->variants->contains(fn($variant) => $variant->stock > 0);
+            })->values();
+
+            $promo->setRelation('products', $inStockProducts);
+
+            return $inStockProducts->isNotEmpty();
+        })->values();
+
+        if ($priceListId) {
+            $promotions = $promotions->filter(function ($promo) use ($priceListId) {
+                return $promo->priceLists->isEmpty()
+                    || $promo->priceLists->pluck('id')->contains($priceListId);
+            })->values();
+        }
+
+        return $promotions;
     }
 }

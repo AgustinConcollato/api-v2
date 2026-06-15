@@ -90,11 +90,18 @@ class ProductVariantController
             return response()->json(['error' => $e->getMessage()], 422);
         }
 
-        $variant->update([
+        $attributes = [
             'sku'       => $validated['sku'],
             'stock'     => $validated['stock'],
             'is_active' => $validated['is_active'] ?? $variant->is_active,
-        ]);
+        ];
+
+        // Si se repone stock manualmente, registrar la fecha de "ingreso"
+        if ($validated['stock'] > $variant->stock) {
+            $attributes['stock_updated_at'] = now();
+        }
+
+        $variant->update($attributes);
 
         if (isset($validated['attribute_values'])) {
             $variant->attributeValues()->delete();

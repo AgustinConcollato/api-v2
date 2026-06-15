@@ -16,6 +16,7 @@ class StorePromotionRequest extends FormRequest
             'starts_at'          => 'nullable|date',
             'ends_at'            => 'nullable|date|after_or_equal:starts_at',
             'is_active'          => 'nullable|boolean',
+            'show_on_web'        => 'nullable|boolean',
             'discount_type'      => 'required|in:percentage,fixed_amount,second_unit_percentage',
             'discount_value'     => 'required|numeric|min:0',
             'max_discount_amount'=> 'nullable|numeric|min:0',

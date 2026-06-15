@@ -16,6 +16,7 @@ class UpdatePromotionRequest extends FormRequest
             'starts_at'          => 'nullable|date',
             'ends_at'            => 'nullable|date',
             'is_active'          => 'nullable|boolean',
+            'show_on_web'        => 'nullable|boolean',
             'discount_type'      => 'nullable|in:percentage,fixed_amount,second_unit_percentage',
             'discount_value'     => 'nullable|numeric|min:0',
             'max_discount_amount'=> 'nullable|numeric|min:0',

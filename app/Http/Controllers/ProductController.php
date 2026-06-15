@@ -204,6 +204,61 @@ class ProductController
         return response()->json($products);
     }
 
+    public function publicNewArrivals(Request $request)
+    {
+        $priceListId = $request->query('price_list_id') ? (int) $request->query('price_list_id') : null;
+
+        $products = Product::published()
+            ->where(function ($q) {
+                $q->where('stock', '>', 0)
+                  ->orWhereHas('variants', fn($vq) => $vq->where('is_active', true)->where('stock', '>', 0));
+            })
+            ->with($this->publicEagerLoads($priceListId))
+            ->orderByStockEntry('desc')
+            ->limit(12)
+            ->get();
+
+        return response()->json(PublicProductResource::collection($products));
+    }
+
+    public function publicBestSellers(Request $request)
+    {
+        $priceListId = $request->query('price_list_id') ? (int) $request->query('price_list_id') : null;
+
+        $products = Product::published()
+            ->where(function ($q) {
+                $q->where('stock', '>', 0)
+                  ->orWhereHas('variants', fn($vq) => $vq->where('is_active', true)->where('stock', '>', 0));
+            })
+            ->with($this->publicEagerLoads($priceListId))
+            ->addSelect([
+                'sold_qty' => DB::table('order_details')
+                    ->selectRaw('COALESCE(SUM(quantity), 0)')
+                    ->whereColumn('order_details.product_id', 'products.id'),
+            ])
+            ->orderBy('sold_qty', 'desc')
+            ->limit(12)
+            ->get();
+
+        return response()->json(PublicProductResource::collection($products));
+    }
+
+    private function publicEagerLoads(?int $priceListId): array
+    {
+        return [
+            'images',
+            'categories.parent',
+            'barcodes',
+            'attributeValues',
+            'priceLists' => fn($q) => $priceListId ? $q->where('price_list_id', $priceListId) : $q,
+            'promotions' => fn($q) => $q->active(),
+            'promotions.priceLists',
+            'variants' => fn($q) => $q->where('is_active', true)->orderBy('id'),
+            'variants.attributeValues.categoryAttribute',
+            'variants.images',
+        ];
+    }
+
     public function storeBarcode(StoreBarcodeRequest $request, Product $product)
     {
         $validated = $request->validated();
