@@ -112,6 +112,7 @@ class PromotionController
                         'name'   => $product->name,
                         'sku'    => $product->sku,
                         'stock'  => $product->stock,
+                        'is_dropshipping' => $product->is_dropshipping,
                         'images' => $product->images->map(fn($img) => [
                             'thumbnail_path' => $img->thumbnail_path,
                             'position'       => $img->position,
