@@ -11,9 +11,10 @@ class UpdateProductRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'        => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'stock'       => 'nullable|integer|min:0',
+            'name'            => 'nullable|string|max:255',
+            'description'     => 'nullable|string',
+            'stock'           => 'nullable|integer|min:0',
+            'is_dropshipping' => 'nullable|boolean',
         ];
     }
 }

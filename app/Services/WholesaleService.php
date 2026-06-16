@@ -63,12 +63,36 @@ class WholesaleService
                     return response()->json(['message' => "Variante #{$variantId} no encontrada o inactiva."], 422);
                 }
 
-                if ($variant->stock < $qty) {
+                // Dropshipping: la variante solo requiere estar disponible (stock > 0), sin tope por cantidad
+                if ($product->is_dropshipping) {
+                    if ($variant->stock < 1) {
+                        $stockErrors[] = [
+                            'product_id' => $productId,
+                            'variant_id' => $variantId,
+                            'name'       => $product->name,
+                            'available'  => 0,
+                            'requested'  => $qty,
+                        ];
+                        continue;
+                    }
+                } elseif ($variant->stock < $qty) {
                     $stockErrors[] = [
                         'product_id' => $productId,
                         'variant_id' => $variantId,
                         'name'       => $product->name,
                         'available'  => (int) $variant->stock,
+                        'requested'  => $qty,
+                    ];
+                    continue;
+                }
+            } elseif ($product->is_dropshipping) {
+                // Dropshipping: solo requiere estar disponible (stock > 0), sin tope por cantidad
+                if ($product->stock < 1) {
+                    $stockErrors[] = [
+                        'product_id' => $productId,
+                        'variant_id' => null,
+                        'name'       => $product->name,
+                        'available'  => 0,
                         'requested'  => $qty,
                     ];
                     continue;
@@ -98,6 +122,7 @@ class WholesaleService
                 'purchase_price'  => $purchasePrice,
                 'freight_percent' => $freightPercent,
                 'subtotal'        => round($unitPriceFloat * $qty, 2),
+                'is_dropshipping' => (bool) $product->is_dropshipping,
             ];
         }
 
@@ -162,7 +187,10 @@ class WholesaleService
                     'subtotal_with_discount' => $subtotalWithDiscount,
                 ]);
 
-                $this->decrementStock($item);
+                // Los dropshipping no manejan stock: no se descuenta
+                if (empty($item['is_dropshipping'])) {
+                    $this->decrementStock($item);
+                }
             }
 
             $this->orderService->calculateOrderTotals($order);

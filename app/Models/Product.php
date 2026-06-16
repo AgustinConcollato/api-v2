@@ -23,6 +23,7 @@ class Product extends Model
         'description',
         'stock',
         'stock_updated_at',
+        'is_dropshipping',
         'sku',
         'status'
     ];
@@ -31,6 +32,7 @@ class Product extends Model
         'status' => ProductStatus::class,
         'stock' => 'integer',
         'stock_updated_at' => 'datetime',
+        'is_dropshipping' => 'boolean',
     ];
 
     /**

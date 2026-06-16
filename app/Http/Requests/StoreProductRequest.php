@@ -14,6 +14,7 @@ class StoreProductRequest extends FormRequest
             'name'                                      => 'required|string|max:255',
             'description'                               => 'nullable|string',
             'stock'                                     => 'nullable|integer|min:0',
+            'is_dropshipping'                           => 'nullable|boolean',
             'images'                                    => 'required|array',
             'images.*'                                  => 'image|mimes:jpeg,png,jpg,webp|max:2048',
             'image_positions'                           => 'nullable|array',

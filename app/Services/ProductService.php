@@ -30,7 +30,8 @@ class ProductService
             'description',
             'stock',
             'status',
-            'sku'
+            'sku',
+            'is_dropshipping'
         ]));
 
         // Product::create() genera el UUID automáticamente
@@ -824,6 +825,7 @@ class ProductService
             'name',
             'description',
             'stock',
+            'is_dropshipping',
             // Agrega aquí cualquier otro campo simple que pueda actualizarse
         ]);
 
