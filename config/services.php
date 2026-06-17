@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'magovirtual' => [
+        'base_url' => env('MAGOVIRTUAL_API_BASE', 'https://magovirtual.com.ar:8080/api/public'),
+        'stock_threshold' => (int) env('DROPSHIP_STOCK_THRESHOLD', 15),
+    ],
+
 ];

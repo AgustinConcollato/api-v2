@@ -37,6 +37,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [UserController::class, 'logout']);
 
     Route::prefix('products')->group(function () {
+        Route::post('/dropshipping/sync-stock', [ProductController::class, 'syncDropshippingStock']);
+        Route::post('/{product}/sync-stock', [ProductController::class, 'syncDropshippingStockOne']);
+
         Route::post('/', [ProductController::class, 'store']);
         Route::post('/add-prices/{product}', [ProductController::class, 'addPrices']);
         Route::post('/{product}/barcode', [ProductController::class, 'storeBarcode']);

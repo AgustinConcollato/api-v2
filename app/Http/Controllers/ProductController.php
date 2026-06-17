@@ -18,6 +18,7 @@ use App\Http\Requests\UpdateStatusRequest;
 use App\Http\Resources\ProductResource;
 use App\Http\Resources\PublicProductResource;
 use App\Models\Product;
+use App\Services\DropshippingStockService;
 use App\Services\ProductService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,31 @@ use Illuminate\Support\Facades\DB;
 class ProductController
 {
     public function __construct(private ProductService $productService) {}
+
+    /**
+     * Revisa el stock del proveedor (magovirtual) para todos los productos
+     * dropshipping y ajusta su disponibilidad. Disparado por un botón del panel.
+     */
+    public function syncDropshippingStock(DropshippingStockService $service)
+    {
+        $summary = $service->syncAll();
+
+        return response()->json($summary);
+    }
+
+    /**
+     * Sincroniza el stock del proveedor para un solo producto dropshipping.
+     */
+    public function syncDropshippingStockOne(Product $product, DropshippingStockService $service)
+    {
+        if (!$product->is_dropshipping) {
+            return response()->json(['error' => 'El producto no es de dropshipping.'], 422);
+        }
+
+        $summary = $service->syncProduct($product);
+
+        return response()->json($summary);
+    }
 
     public function store(StoreProductRequest $request)
     {
