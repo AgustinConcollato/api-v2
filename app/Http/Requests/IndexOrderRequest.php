@@ -20,6 +20,7 @@ class IndexOrderRequest extends FormRequest
             'client_id'  => 'nullable|exists:clients,id',
             'range'      => 'nullable|string|in:week,month,all',
             'with_debt'  => 'nullable|boolean',
+            'search'     => 'nullable|string|max:255',
         ];
     }
 

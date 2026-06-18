@@ -45,6 +45,17 @@ class OrderService
             $q->where('client_id', $data['client_id']);
         });
 
+        // Búsqueda libre: por número de pedido o por nombre de cliente
+        $query->when(!empty($data['search']), function ($q) use ($data) {
+            $term = trim($data['search']);
+            $q->where(function ($sub) use ($term) {
+                $sub->whereHas('client', fn($c) => $c->where('name', 'like', "%{$term}%"));
+                if (is_numeric($term)) {
+                    $sub->orWhere('number', (int) $term);
+                }
+            });
+        });
+
         // Filtro por Deuda Pendiente
         $query->when(!empty($data['with_debt']), function ($q) {
             $q->whereRaw(

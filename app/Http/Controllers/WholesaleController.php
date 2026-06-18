@@ -25,6 +25,7 @@ class WholesaleController
 
         try {
             $order = $this->wholesaleService->createOrder($data, $resolved);
+            $order->refresh(); // 'number' lo asigna la DB (AUTO_INCREMENT)
 
             try {
                 Mail::to(config('mail.order_notify'))
@@ -34,8 +35,9 @@ class WholesaleController
             }
 
             return response()->json([
-                'order_id' => $order->id,
-                'message'  => 'Pedido recibido',
+                'order_id'     => $order->id,
+                'order_number' => $order->number,
+                'message'      => 'Pedido recibido',
             ], 201);
         } catch (\App\Exceptions\InsufficientStockException $e) {
             return response()->json([
