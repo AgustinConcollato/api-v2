@@ -28,6 +28,7 @@ Route::get('/user', function (Request $request) {
 
 // Rutas públicas de promociones — deben ir antes del grupo auth para no ser capturadas por /promotions/{promotion}
 Route::get('/promotions/public', [PromotionController::class, 'publicIndex']);
+Route::get('/promotions/{promotion}/public', [PromotionController::class, 'publicShow']);
 
 // Layout del home público (config publicada, consumida por la web)
 Route::get('/home-layout', [HomeLayoutController::class, 'publicShow']);

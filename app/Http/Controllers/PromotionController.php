@@ -79,6 +79,113 @@ class PromotionController
         return response()->json(new PromotionResource($promotion));
     }
 
+    public function publicShow(Request $request, Promotion $promotion)
+    {
+        $now = now();
+        $isVisible = $promotion->is_active
+            && $promotion->show_on_web
+            && ($promotion->starts_at === null || $promotion->starts_at <= $now)
+            && ($promotion->ends_at === null || $promotion->ends_at >= $now);
+
+        if (!$isVisible) {
+            return response()->json(['message' => 'Promoción no encontrada'], 404);
+        }
+
+        $priceListId = $request->query('price_list_id') ? (int) $request->query('price_list_id') : null;
+
+        $promotion->load([
+            'priceLists:id,name',
+            'products' => fn($q) => $q->published()->with([
+                'images',
+                'priceLists',
+                'promotions' => fn($pq) => $pq->active(),
+                'promotions.priceLists',
+                'variants' => fn($vq) => $vq->where('is_active', true)->with('images', 'attributeValues.categoryAttribute'),
+            ]),
+        ]);
+
+        if ($priceListId) {
+            $listIds = $promotion->priceLists->pluck('id');
+            if ($listIds->isNotEmpty() && !$listIds->contains($priceListId)) {
+                return response()->json(['message' => 'Promoción no encontrada'], 404);
+            }
+        }
+
+        $inStock = $promotion->products->filter(function ($product) {
+            return $product->stock > 0
+                || $product->variants->contains(fn($v) => $v->stock > 0);
+        })->values();
+
+        $promotion->setRelation('products', $inStock);
+
+        return response()->json([
+            'id'                 => $promotion->id,
+            'name'               => $promotion->name,
+            'description'        => $promotion->description,
+            'discount_type'      => $promotion->discount_type,
+            'discount_value'     => (float) $promotion->discount_value,
+            'max_discount_amount' => $promotion->max_discount_amount !== null ? (float) $promotion->max_discount_amount : null,
+            'min_quantity'       => $promotion->min_quantity,
+            'ends_at'            => $promotion->ends_at,
+            'price_list_ids'     => $promotion->priceLists->pluck('id')->toArray(),
+            'products'           => $promotion->products->map(function ($product) use ($priceListId) {
+                $priceLists = $priceListId
+                    ? $product->priceLists->where('id', $priceListId)
+                    : $product->priceLists;
+
+                $promotions = $priceListId
+                    ? $product->promotions->filter(
+                        fn($p) => $p->priceLists->isEmpty() || $p->priceLists->pluck('id')->contains($priceListId)
+                    )
+                    : $product->promotions;
+
+                return [
+                    'id'             => $product->id,
+                    'name'           => $product->name,
+                    'sku'            => $product->sku,
+                    'stock'          => $product->stock,
+                    'is_dropshipping' => $product->is_dropshipping,
+                    'images'         => $product->images->map(fn($img) => [
+                        'thumbnail_path' => $img->thumbnail_path,
+                        'position'       => $img->position,
+                    ])->sortBy('position')->values(),
+                    'price_lists'    => $priceLists->map(fn($pl) => [
+                        'id'    => $pl->id,
+                        'price' => $pl->pivot->price,
+                    ])->values(),
+                    'promotions'     => $promotions->map(function ($p) {
+                        $cond = $p->getEffectiveConditions($p->pivot);
+                        return [
+                            'discount_type'       => $cond['discount_type'],
+                            'discount_value'      => (float) $cond['discount_value'],
+                            'max_discount_amount' => $cond['max_discount_amount'] !== null ? (float) $cond['max_discount_amount'] : null,
+                            'min_quantity'        => $cond['min_quantity'],
+                            'ends_at'             => $p->ends_at,
+                            'price_list_ids'      => $p->priceLists->pluck('id')->toArray(),
+                        ];
+                    })->values(),
+                    'variants'       => $product->variants->map(fn($v) => [
+                        'id'        => $v->id,
+                        'sku'       => $v->sku,
+                        'stock'     => $v->stock,
+                        'is_active' => $v->is_active,
+                        'images'    => $v->images->map(fn($img) => [
+                            'thumbnail_path' => $img->thumbnail_path,
+                            'position'       => $img->position,
+                        ])->sortBy('position')->values(),
+                        'attribute_values' => $v->attributeValues->map(fn($av) => [
+                            'category_attribute_id' => $av->category_attribute_id,
+                            'value'                 => $av->value,
+                            'category_attribute'    => $av->categoryAttribute ? [
+                                'name' => $av->categoryAttribute->name,
+                            ] : null,
+                        ])->values(),
+                    ])->values(),
+                ];
+            })->values(),
+        ]);
+    }
+
     public function publicIndex(Request $request)
     {
         $priceListId = $request->query('price_list_id') ? (int) $request->query('price_list_id') : null;
