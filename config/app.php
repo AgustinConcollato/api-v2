@@ -15,6 +15,8 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
+    'site_url' => env('SITE_URL', 'https://mayorista.concoypunto.com'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment

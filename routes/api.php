@@ -18,6 +18,7 @@ use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\GeminiAssistantController;
 use App\Http\Controllers\HomeLayoutController;
 use App\Http\Controllers\MercadoLibreController;
+use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\WholesaleController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -32,6 +33,8 @@ Route::get('/promotions/{promotion}/public', [PromotionController::class, 'publi
 
 // Layout del home público (config publicada, consumida por la web)
 Route::get('/home-layout', [HomeLayoutController::class, 'publicShow']);
+
+Route::get('/sitemap.xml', SitemapController::class);
 
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/authentication', [UserController::class, 'auth']);
