@@ -120,6 +120,32 @@ class PaymentService
             });
         });
 
-        return $query->paginate(20);
+        $stats = (clone $query)
+            ->selectRaw("
+                SUM(amount) as total_amount,
+                SUM(CASE WHEN payment_method = 'transfer' THEN 1 ELSE 0 END) as transfer_count,
+                SUM(CASE WHEN payment_method = 'cash' THEN 1 ELSE 0 END) as cash_count,
+                SUM(CASE WHEN payment_method = 'check' THEN 1 ELSE 0 END) as check_count,
+                SUM(CASE WHEN payment_method = 'credit_card' THEN 1 ELSE 0 END) as credit_card_count
+            ")
+            ->reorder()
+            ->first();
+
+        $paginated = $query->paginate(20);
+
+        return [
+            'data'         => $paginated->items(),
+            'current_page' => $paginated->currentPage(),
+            'last_page'    => $paginated->lastPage(),
+            'per_page'     => $paginated->perPage(),
+            'total'        => $paginated->total(),
+            'stats'        => [
+                'total_amount'     => (float) ($stats->total_amount ?? 0),
+                'transfer_count'   => (int) ($stats->transfer_count ?? 0),
+                'cash_count'       => (int) ($stats->cash_count ?? 0),
+                'check_count'      => (int) ($stats->check_count ?? 0),
+                'credit_card_count' => (int) ($stats->credit_card_count ?? 0),
+            ],
+        ];
     }
 }
