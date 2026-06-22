@@ -108,9 +108,9 @@ class PaymentService
             $q->where('payment_method', $filters['payment_method']);
         });
 
-        // Filtro por Order ID
-        $query->when(isset($filters['order_id']), function ($q) use ($filters) {
-            $q->where('order_id', $filters['order_id']);
+        // Filtro por número de pedido
+        $query->when(isset($filters['order_number']), function ($q) use ($filters) {
+            $q->whereHas('order', fn($q2) => $q2->where('number', $filters['order_number']));
         });
 
         // Filtro por Cliente
