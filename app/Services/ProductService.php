@@ -156,6 +156,10 @@ class ProductService
             $query->where('status', '=', $filters['status']);
         }
 
+        if (isset($filters['is_dropshipping']) && $filters['is_dropshipping'] !== '') {
+            $query->where('is_dropshipping', $filters['is_dropshipping'] === '1');
+        }
+
         // 2. Filtro por categoría (puede ser array o single)
         if (isset($filters['category_id'])) {
             $categoryIds = is_array($filters['category_id'])

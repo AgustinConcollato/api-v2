@@ -153,7 +153,8 @@ class ProductController
             'sort_by',
             'sort_order',
             'per_page',
-            'status'
+            'status',
+            'is_dropshipping'
         ]);
 
         $products = $this->productService->getFilteredProducts($filters);
