@@ -16,6 +16,8 @@ use Illuminate\Validation\ValidationException;
 
 class OrderService
 {
+    public function __construct(private ClientCreditService $creditService) {}
+
     /**
      * Summary of createOrder
      * @param array $data
@@ -270,6 +272,11 @@ class OrderService
      */
     public function updateOrderHeader(Order $order, array $data): Order
     {
+        // Estado previo (para detectar la transición hacia "confirmed").
+        $oldStatusValue = $order->status instanceof OrderStatus
+            ? $order->status->value
+            : $order->status;
+
         // Campos que se pueden actualizar:
         $updatableFields = [
             'client_id',
@@ -326,6 +333,18 @@ class OrderService
 
         // Recalcular los totales finales (es crucial si se cambian descuentos o costos de envío)
         $this->calculateOrderTotals($order);
+
+        // Al pasar a "confirmed", aplicar el saldo a favor del cliente (si tiene) a sus pedidos con deuda.
+        $confirmedNow = isset($data['status'])
+            && $data['status'] === OrderStatus::Confirmed->value
+            && $oldStatusValue !== OrderStatus::Confirmed->value;
+
+        if ($confirmedNow && $order->client_id) {
+            $client = $order->client()->first();
+            if ($client && $this->creditService->getBalance($client) > 0) {
+                $this->creditService->settleClient($client);
+            }
+        }
 
         return $order->fresh(); // Devolver el modelo recién actualizado
     }

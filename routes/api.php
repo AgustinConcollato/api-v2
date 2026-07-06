@@ -6,6 +6,7 @@ use App\Http\Controllers\ClientAuthController;
 use App\Http\Controllers\CategoryAttributeController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\ClientCreditController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PriceListController;
@@ -100,6 +101,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/', [ClientController::class, 'store']);
         Route::put('/{client}', [ClientController::class, 'update']);
         Route::delete('/{client}', [ClientController::class, 'destroy']);
+
+        // Cuenta corriente / saldo a favor
+        Route::post('/{client}/payments', [ClientCreditController::class, 'store']);
+        Route::get('/{client}/credits', [ClientCreditController::class, 'index']);
     });
 
     Route::prefix('orders')->group(function () {

@@ -181,6 +181,8 @@ class ClientService
         $ordersCount = $client->orders->count();
         $balanceDue  = $validOrders->sum('balance_due');
 
+        $creditBalance = round((float) $client->creditMovements()->sum('amount'), 2);
+
         $lastOrderAt   = $validOrders->max('created_at');
         $firstOrderAt  = $validOrders->min('created_at');
         $daysSinceLast = $lastOrderAt
@@ -206,6 +208,7 @@ class ClientService
             'total_spent'      => $totalSpent,
             'total_paid'       => $totalPaid,
             'balance_due'      => $balanceDue,
+            'credit_balance'   => $creditBalance,
             'cancelled_count'  => $client->orders->filter(fn($o) => $this->statusValue($o) === 'cancelled')->count(),
             'active_count'     => $client->orders->filter(fn($o) => \in_array($this->statusValue($o), ['pending', 'processing', 'confirmed', 'shipped']))->count(),
             'avg_order_value'  => $validCount > 0 ? round($totalSpent / $validCount, 2) : 0,

@@ -40,7 +40,7 @@ class PaymentController
         $order->balance_due = $this->orderService->getPendingBalance($order);
 
         return response()->json([
-            'payment' => new PaymentResource($payment),
+            'payment' => $payment ? new PaymentResource($payment) : null,
             'order'   => new OrderResource($order),
         ], 201);
     }

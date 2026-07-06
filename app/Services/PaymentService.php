@@ -10,40 +10,59 @@ use App\Models\Payment;
 
 class PaymentService
 {
-    public function __construct(private OrderService $orderService) {}
+    public function __construct(
+        private OrderService $orderService,
+        private ClientCreditService $creditService,
+    ) {}
 
     /**
-     * Procesa y registra un nuevo pago para un pedido.
+     * Procesa y registra un nuevo pago para un pedido. Si el monto excede el saldo
+     * pendiente, el excedente se guarda como saldo a favor del cliente (si el pedido
+     * tiene cliente) y se reparte a sus otros pedidos con deuda.
+     *
      * @param Order $order El pedido al que se aplica el pago.
      * @param array $data Los datos del pago (monto, método, etc.).
-     * @return Payment
+     * @return Payment|null El pago del pedido (null si todo el monto fue excedente).
      */
-    public function processPayment(Order $order, array $data): Payment
+    public function processPayment(Order $order, array $data): ?Payment
     {
-        $pendingBalance = $this->orderService->getPendingBalance($order);
-        $amountPaid = $data['amount'];
+        $pendingBefore = $this->orderService->getPendingBalance($order);
+        $amountPaid = round((float) $data['amount'], 2);
 
         if ($amountPaid <= 0) {
             throw new \Exception("El monto del pago debe ser positivo.");
         }
 
-        // Opcional: Impedir sobrepago (si es estricto)
-        // if ($amountPaid > $pendingBalance) {
-        //     throw new Exception("El monto pagado excede el saldo pendiente. Saldo pendiente: " . $pendingBalance);
-        // ver si guardar lo que pago de más en algun lado
-        // }
+        // Lo que se imputa al pedido no puede superar su saldo pendiente.
+        $onOrder = round(min($amountPaid, $pendingBefore), 2);
+        $excess  = round($amountPaid - $onOrder, 2);
 
-        // 2. CREACIÓN DEL PAGO
-        $payment = Payment::create([
-            'order_id' => $data['order_id'],
-            'payment_method' => $data['payment_method'],
-            'amount' => $amountPaid,
-            'status' => $data['status'] ?? PaymentStatus::Completed,
-            'payment_date' => now(),
-        ]);
+        $payment = null;
+        if ($onOrder > 0) {
+            $payment = Payment::create([
+                'order_id' => $order->id,
+                'payment_method' => $data['payment_method'],
+                'amount' => $onOrder,
+                'status' => $data['status'] ?? PaymentStatus::Completed,
+                'payment_date' => now(),
+            ]);
 
-        if ($this->orderService->getPendingBalance($order) <= 0 && $order->status == 'pending') {
-            $order->update(['status' => OrderStatus::Confirmed]);
+            if ($this->orderService->getPendingBalance($order) <= 0 && $order->status == 'pending') {
+                $order->update(['status' => OrderStatus::Confirmed]);
+            }
+        }
+
+        // Excedente -> saldo a favor del cliente (se reparte a sus otros pedidos con deuda).
+        if ($excess > 0 && $order->client_id) {
+            $client = $order->client()->first();
+            if ($client) {
+                $this->creditService->deposit(
+                    $client,
+                    $excess,
+                    $data['payment_method'],
+                    "Excedente del pedido #{$order->number}",
+                );
+            }
         }
 
         return $payment;

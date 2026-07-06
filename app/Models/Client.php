@@ -64,4 +64,19 @@ class Client extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(Address::class);
     }
+
+    // Movimientos de crédito (cuenta corriente / saldo a favor)
+    public function creditMovements(): HasMany
+    {
+        return $this->hasMany(ClientCredit::class);
+    }
+
+    /**
+     * Saldo a favor del cliente = suma de los movimientos de crédito.
+     * Se accede como $client->credit_balance
+     */
+    public function getCreditBalanceAttribute(): float
+    {
+        return (float) $this->creditMovements()->sum('amount');
+    }
 }
