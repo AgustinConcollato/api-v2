@@ -126,4 +126,16 @@ return [
 
     'order_notify' => env('ORDER_NOTIFY_EMAIL', 'bazarshopmayorista@gmail.com'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Destinatario extra de recordatorios de facturas por vencer
+    |--------------------------------------------------------------------------
+    |
+    | Segundo mail que recibe los recordatorios de compras a proveedores próximas
+    | a vencer (además de order_notify).
+    |
+    */
+
+    'purchase_reminder' => env('PURCHASE_REMINDER_EMAIL'),
+
 ];

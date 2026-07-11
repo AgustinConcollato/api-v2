@@ -14,6 +14,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierPurchaseController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\GeminiAssistantController;
@@ -93,6 +94,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/', [SupplierController::class, 'index']);
         Route::get('/{supplier}', [SupplierController::class, 'show']);
         Route::put('/{supplier}', [SupplierController::class, 'update']);
+    });
+
+    Route::prefix('supplier-purchases')->group(function () {
+        Route::get('/', [SupplierPurchaseController::class, 'index']);
+        Route::post('/', [SupplierPurchaseController::class, 'store']);
+        Route::delete('/payments/{payment}', [SupplierPurchaseController::class, 'destroyPayment']);
+        Route::post('/{supplierPurchase}/payments', [SupplierPurchaseController::class, 'storePayment']);
+        Route::put('/{supplierPurchase}', [SupplierPurchaseController::class, 'update']);
+        Route::delete('/{supplierPurchase}', [SupplierPurchaseController::class, 'destroy']);
     });
 
     Route::prefix('clients')->group(function () {
