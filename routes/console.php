@@ -16,4 +16,5 @@ Artisan::command('inspire', function () {
 // Requiere el cron del server corriendo `php artisan schedule:run` cada minuto.
 \Illuminate\Support\Facades\Schedule::command('supplier-purchases:send-reminders')
     ->dailyAt('09:00')
+    ->timezone('America/Argentina/Buenos_Aires')
     ->withoutOverlapping();

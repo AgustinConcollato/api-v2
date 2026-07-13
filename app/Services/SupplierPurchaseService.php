@@ -12,9 +12,19 @@ use Illuminate\Support\Carbon;
 class SupplierPurchaseService
 {
     /**
+     * Columnas ordenables desde el front y su columna real en la tabla.
+     */
+    private const SORTABLE_COLUMNS = [
+        'purchase_date' => 'purchase_date',
+        'due_date' => 'due_date',
+        'invoice_number' => 'invoice_number',
+        'total' => 'total_with_discount',
+    ];
+
+    /**
      * Lista paginada de compras con filtros, más estadísticas globales del set filtrado.
      *
-     * @param array $filters supplier_id, status, start_date, end_date, invoice_number, page, per_page
+     * @param array $filters supplier_id, status, start_date, end_date, invoice_number, page, per_page, sort_by, sort_dir
      * @return array{data: LengthAwarePaginator, stats: array}
      */
     public function index(array $filters): array
@@ -28,7 +38,20 @@ class SupplierPurchaseService
         $this->applyBaseFilters($query, $filters);
         $this->applyStatusFilter($query, $filters['status'] ?? null);
 
-        $query->orderByDesc('purchase_date')->orderByDesc('created_at');
+        $sortColumn = self::SORTABLE_COLUMNS[$filters['sort_by'] ?? ''] ?? null;
+        $sortDir = strtolower($filters['sort_dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+
+        if ($sortColumn) {
+            // Vencimientos nulos siempre al final, sin importar la dirección.
+            if ($sortColumn === 'due_date') {
+                $query->orderByRaw('due_date IS NULL')->orderBy('due_date', $sortDir);
+            } else {
+                $query->orderBy($sortColumn, $sortDir);
+            }
+            $query->orderByDesc('created_at');
+        } else {
+            $query->orderByDesc('purchase_date')->orderByDesc('created_at');
+        }
 
         $paginator = $query->paginate($perPage);
 
@@ -131,6 +154,20 @@ class SupplierPurchaseService
                     ->whereRaw("$paid < total_with_discount");
                 break;
         }
+    }
+
+    /**
+     * Proveedores que tienen al menos una compra cargada (para el filtro).
+     *
+     * @return \Illuminate\Support\Collection
+     */
+    public function suppliersWithPurchases(): \Illuminate\Support\Collection
+    {
+        $ids = SupplierPurchase::query()->distinct()->pluck('supplier_id');
+
+        return \App\Models\Supplier::whereIn('id', $ids)
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 
     public function store(array $data): SupplierPurchase

@@ -98,6 +98,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::prefix('supplier-purchases')->group(function () {
         Route::get('/', [SupplierPurchaseController::class, 'index']);
+        Route::get('/suppliers', [SupplierPurchaseController::class, 'suppliers']);
         Route::post('/', [SupplierPurchaseController::class, 'store']);
         Route::delete('/payments/{payment}', [SupplierPurchaseController::class, 'destroyPayment']);
         Route::post('/{supplierPurchase}/payments', [SupplierPurchaseController::class, 'storePayment']);

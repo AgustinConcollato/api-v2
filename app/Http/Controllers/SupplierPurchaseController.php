@@ -30,6 +30,11 @@ class SupplierPurchaseController
         ]);
     }
 
+    public function suppliers()
+    {
+        return response()->json($this->service->suppliersWithPurchases());
+    }
+
     public function store(StoreSupplierPurchaseRequest $request)
     {
         $purchase = $this->service->store($request->validated());
