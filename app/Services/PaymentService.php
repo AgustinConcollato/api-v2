@@ -150,6 +150,50 @@ class PaymentService
             ->reorder()
             ->first();
 
+        // Desglose financiero prorrateado: cada pago aporta al costo/envío/ganancia de su
+        // pedido en proporción a lo que representa sobre el total del pedido (mismo criterio
+        // que PaidBreakdown en el frontend). Se recalcula con join propio (mismos filtros que
+        // $query, con columnas calificadas) para evitar ambigüedad con orders.status.
+        $breakdownQuery = Payment::query()->join('orders', 'orders.id', '=', 'payments.order_id');
+
+        if (isset($filters['start_date']) && isset($filters['end_date']) && $filters['start_date'] !== '' && $filters['end_date'] !== '') {
+            $breakdownQuery->whereBetween('payments.payment_date', [
+                $filters['start_date'] . ' 00:00:00',
+                $filters['end_date'] . ' 23:59:59'
+            ]);
+        } elseif (isset($filters['range'])) {
+            if ($filters['range'] === 'week') {
+                $breakdownQuery->whereBetween('payments.payment_date', [now()->startOfWeek(), now()->endOfWeek()]);
+            } elseif ($filters['range'] === 'month') {
+                $breakdownQuery->whereMonth('payments.payment_date', now()->month)
+                    ->whereYear('payments.payment_date', now()->year);
+            }
+        }
+
+        $breakdownQuery->when(isset($filters['status']), function ($q) use ($filters) {
+            $q->where('payments.status', $filters['status']);
+        });
+        $breakdownQuery->when(isset($filters['payment_method']), function ($q) use ($filters) {
+            $q->where('payments.payment_method', $filters['payment_method']);
+        });
+        $breakdownQuery->when(isset($filters['order_number']), function ($q) use ($filters) {
+            $q->where('orders.number', $filters['order_number']);
+        });
+        $breakdownQuery->when(isset($filters['client_id']), function ($q) use ($filters) {
+            $q->where('orders.client_id', $filters['client_id']);
+        });
+
+        $breakdownRow = $breakdownQuery
+            ->selectRaw("
+                SUM(CASE WHEN orders.final_total_amount > 0 THEN payments.amount / orders.final_total_amount * orders.total_cost ELSE 0 END) as cost,
+                SUM(CASE WHEN orders.final_total_amount > 0 THEN payments.amount / orders.final_total_amount * orders.shipping_cost ELSE 0 END) as shipping,
+                SUM(CASE WHEN orders.final_total_amount > 0 THEN payments.amount / orders.final_total_amount * (orders.final_total_amount - orders.shipping_cost - orders.total_cost) ELSE 0 END) as profit
+            ")
+            ->first();
+
+        $profit = (float) ($breakdownRow->profit ?? 0);
+        $savings = $profit * 0.10;
+
         $paginated = $query->paginate(20);
 
         return [
@@ -164,6 +208,13 @@ class PaymentService
                 'cash_count'       => (int) ($stats->cash_count ?? 0),
                 'check_count'      => (int) ($stats->check_count ?? 0),
                 'credit_card_count' => (int) ($stats->credit_card_count ?? 0),
+            ],
+            'breakdown' => [
+                'cost'     => (float) ($breakdownRow->cost ?? 0),
+                'shipping' => (float) ($breakdownRow->shipping ?? 0),
+                'profit'   => $profit,
+                'savings'  => $savings,
+                'to_split' => $profit - $savings,
             ],
         ];
     }
