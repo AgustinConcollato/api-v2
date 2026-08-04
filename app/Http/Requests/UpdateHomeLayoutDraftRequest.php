@@ -31,17 +31,18 @@ class UpdateHomeLayoutDraftRequest extends FormRequest
     {
         return [
             'sections.*.id'                     => 'required|string',
-            'sections.*.type'                   => 'required|in:banner,products,promotions,text',
+            'sections.*.type'                   => 'required|in:banner,banner_products,products,products_grid,promo_tiles,promotions,text',
             'sections.*.visible'                => 'required|boolean',
             'sections.*.settings'               => 'present|array',
 
-            // products
+            // products (también usado por products_grid y banner_products)
             'sections.*.settings.title'         => 'nullable|string|max:255',
-            'sections.*.settings.source'        => 'required_if:sections.*.type,products|in:new-arrivals,best-sellers,category,keyword',
+            'sections.*.settings.source'        => 'required_if:sections.*.type,products,products_grid,banner_products|in:new-arrivals,best-sellers,category,keyword',
             'sections.*.settings.categoryId'    => 'nullable|integer|exists:categories,id',
             'sections.*.settings.keyword'       => 'nullable|string|max:255',
             'sections.*.settings.viewAllHref'   => 'nullable|string|max:255',
             'sections.*.settings.limit'         => 'nullable|integer|between:1,24',
+            'sections.*.settings.layout'        => 'nullable|in:grid,scroll',
 
             // banner (puede guardarse sin imágenes todavía)
             'sections.*.settings.slides'        => 'nullable|array',
@@ -49,6 +50,16 @@ class UpdateHomeLayoutDraftRequest extends FormRequest
             'sections.*.settings.slides.*.path' => 'required|string|starts_with:home/banners/',
             'sections.*.settings.slides.*.link' => 'nullable|string|max:2048',
             'sections.*.settings.autoplayMs'    => 'nullable|integer|between:2000,30000',
+
+            // promo_tiles
+            'sections.*.settings.tiles'              => 'nullable|array',
+            'sections.*.settings.tiles.*.id'          => 'required|string',
+            'sections.*.settings.tiles.*.path'        => 'required|string|starts_with:home/banners/',
+            'sections.*.settings.tiles.*.link'        => 'nullable|string|max:2048',
+            'sections.*.settings.tiles.*.eyebrow'     => 'nullable|string|max:60',
+            'sections.*.settings.tiles.*.title'       => 'nullable|string|max:120',
+            'sections.*.settings.tiles.*.buttonText'  => 'nullable|string|max:40',
+            'sections.*.settings.tiles.*.bgColor'     => 'nullable|string|max:20',
 
             // promotions
             'sections.*.settings.promotionId'   => 'nullable|uuid|exists:promotions,id',
@@ -65,7 +76,7 @@ class UpdateHomeLayoutDraftRequest extends FormRequest
     {
         return [
             'sections.*.type.required'                    => 'Cada sección debe tener un tipo.',
-            'sections.*.type.in'                          => 'El tipo de sección debe ser: banner, products, promotions o text.',
+            'sections.*.type.in'                          => 'El tipo de sección debe ser: banner, banner_products, products, products_grid, promo_tiles, promotions o text.',
             'sections.*.visible.required'                 => 'Cada sección debe indicar si es visible.',
             'sections.*.settings.source.required_if'      => 'Las secciones de productos deben tener un origen (new-arrivals, best-sellers, category o keyword).',
             'sections.*.settings.source.in'               => 'El origen de productos debe ser: new-arrivals, best-sellers, category o keyword.',

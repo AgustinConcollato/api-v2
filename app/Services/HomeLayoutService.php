@@ -14,6 +14,16 @@ class HomeLayoutService
     private const BANNERS_PATH = 'home/banners';
     private const BANNER_MAX_WIDTH = 1600;
 
+    /**
+     * Clave de settings que guarda un array de imágenes ({id,path,link,...}), por tipo de sección.
+     * Usado para resolver/limpiar URLs e imágenes huérfanas sin importar el tipo.
+     */
+    private const IMAGE_ARRAY_SETTINGS_KEY = [
+        'banner' => 'slides',
+        'banner_products' => 'slides',
+        'promo_tiles' => 'tiles',
+    ];
+
     public function getLayout(): HomeLayout
     {
         return HomeLayout::firstOrCreate([], [
@@ -199,16 +209,17 @@ class HomeLayoutService
     }
 
     /**
-     * Agrega la URL absoluta a cada slide de banner del layout.
+     * Agrega la URL absoluta a cada imagen (slide/tile) del layout.
      */
     private function resolveUrls(array $layout): array
     {
         $layout['sections'] = array_map(function ($section) {
-            if ($section['type'] === 'banner' && isset($section['settings']['slides'])) {
-                $section['settings']['slides'] = array_map(function ($slide) {
-                    $slide['url'] = Storage::disk('public')->url($slide['path']);
-                    return $slide;
-                }, $section['settings']['slides']);
+            $key = self::IMAGE_ARRAY_SETTINGS_KEY[$section['type']] ?? null;
+            if ($key && isset($section['settings'][$key])) {
+                $section['settings'][$key] = array_map(function ($item) {
+                    $item['url'] = Storage::disk('public')->url($item['path']);
+                    return $item;
+                }, $section['settings'][$key]);
             }
             return $section;
         }, $layout['sections'] ?? []);
@@ -222,18 +233,19 @@ class HomeLayoutService
     private function stripResolvedUrls(array $sections): array
     {
         return array_map(function ($section) {
-            if (($section['type'] ?? null) === 'banner' && isset($section['settings']['slides'])) {
-                $section['settings']['slides'] = array_map(function ($slide) {
-                    unset($slide['url']);
-                    return $slide;
-                }, $section['settings']['slides']);
+            $key = self::IMAGE_ARRAY_SETTINGS_KEY[$section['type'] ?? null] ?? null;
+            if ($key && isset($section['settings'][$key])) {
+                $section['settings'][$key] = array_map(function ($item) {
+                    unset($item['url']);
+                    return $item;
+                }, $section['settings'][$key]);
             }
             return $section;
         }, $sections);
     }
 
     /**
-     * Paths de banner referenciados en lo publicado y en todos los diseños guardados.
+     * Paths de imágenes (banner/tiles) referenciados en lo publicado y en todos los diseños guardados.
      */
     private function collectReferencedPaths(HomeLayout $layout): array
     {
@@ -241,8 +253,10 @@ class HomeLayoutService
             ->merge(HomeLayoutPreset::pluck('sections'))
             ->filter()
             ->flatMap(fn($sections) => $sections)
-            ->filter(fn($s) => ($s['type'] ?? null) === 'banner')
-            ->flatMap(fn($s) => $s['settings']['slides'] ?? [])
+            ->flatMap(function ($s) {
+                $key = self::IMAGE_ARRAY_SETTINGS_KEY[$s['type'] ?? null] ?? null;
+                return $key ? ($s['settings'][$key] ?? []) : [];
+            })
             ->pluck('path')
             ->filter()
             ->unique()
