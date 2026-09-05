@@ -2,16 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Services\UserService;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Password as FacadesPassword;
 
 class UserController
 {
