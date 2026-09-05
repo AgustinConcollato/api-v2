@@ -580,6 +580,9 @@ class ProductService
             $variant = $barcodeEntry->variant->load([
                 'attributeValues.categoryAttribute',
                 'images',
+                // Sin esto el panel no puede saber que la variante tiene precio
+                // propio y termina cargando el del producto base en el pedido.
+                'priceLists',
             ]);
             $product->matched_variant = $variant;
         }
