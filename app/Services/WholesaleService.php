@@ -53,6 +53,8 @@ class WholesaleService
                 return response()->json(['message' => "Producto #{$productId} sin precio mayorista."], 422);
             }
 
+            $isDropshipping = (bool) $product->is_dropshipping;
+
             if ($variantId) {
                 $variant = ProductVariant::where('id', $variantId)
                     ->where('product_id', $productId)
@@ -63,13 +65,19 @@ class WholesaleService
                     return response()->json(['message' => "Variante #{$variantId} no encontrada o inactiva."], 422);
                 }
 
+                $isDropshipping = $variant->isDropshipping();
+                $variantPrice = $variant->effectivePrice(self::PRICE_LIST_ID);
+                if ($variantPrice !== null) {
+                    $unitPrice = $variantPrice;
+                }
+
                 // Dropshipping: la variante solo requiere estar disponible (stock > 0), sin tope por cantidad
-                if ($product->is_dropshipping) {
+                if ($isDropshipping) {
                     if ($variant->stock < 1) {
                         $stockErrors[] = [
                             'product_id' => $productId,
                             'variant_id' => $variantId,
-                            'name'       => $product->name,
+                            'name'       => $variant->effectiveName(),
                             'available'  => 0,
                             'requested'  => $qty,
                         ];
@@ -79,13 +87,13 @@ class WholesaleService
                     $stockErrors[] = [
                         'product_id' => $productId,
                         'variant_id' => $variantId,
-                        'name'       => $product->name,
+                        'name'       => $variant->effectiveName(),
                         'available'  => (int) $variant->stock,
                         'requested'  => $qty,
                     ];
                     continue;
                 }
-            } elseif ($product->is_dropshipping) {
+            } elseif ($isDropshipping) {
                 // Dropshipping: solo requiere estar disponible (stock > 0), sin tope por cantidad
                 if ($product->stock < 1) {
                     $stockErrors[] = [
@@ -122,7 +130,7 @@ class WholesaleService
                 'purchase_price'  => $purchasePrice,
                 'freight_percent' => $freightPercent,
                 'subtotal'        => round($unitPriceFloat * $qty, 2),
-                'is_dropshipping' => (bool) $product->is_dropshipping,
+                'is_dropshipping' => $isDropshipping,
             ];
         }
 
@@ -244,14 +252,15 @@ class WholesaleService
     {
         $variantId = $item['variant_id'] ?? null;
         $product   = Product::find($item['product_id']);
-        $available = $variantId
-            ? (int) (ProductVariant::find($variantId)?->stock ?? 0)
+        $variant   = $variantId ? ProductVariant::find($variantId) : null;
+        $available = $variant
+            ? (int) $variant->stock
             : (int) ($product?->stock ?? 0);
 
         throw new InsufficientStockException([[
             'product_id' => $item['product_id'],
             'variant_id' => $variantId,
-            'name'       => $product?->name ?? 'Producto',
+            'name'       => $variant?->effectiveName() ?? $product?->name ?? 'Producto',
             'available'  => $available,
             'requested'  => $item['quantity'],
         ]]);

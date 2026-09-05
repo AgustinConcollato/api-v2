@@ -24,7 +24,12 @@ class DropshippingStockService
     {
         $summary = $this->emptySummary();
 
-        $products = Product::where('is_dropshipping', true)
+        // Un producto entra al sync si él mismo es dropshipping, o si alguna de sus
+        // variantes lo es por override propio (aunque el producto base no lo sea).
+        $products = Product::where(function ($q) {
+                $q->where('is_dropshipping', true)
+                    ->orWhereHas('variants', fn($vq) => $vq->where('is_dropshipping', true));
+            })
             ->with([
                 'variants' => fn($q) => $q->where('is_active', true),
                 'variants.barcodes',
@@ -54,12 +59,15 @@ class DropshippingStockService
         $threshold = (int) config('services.magovirtual.stock_threshold', 15);
         $summary = $this->emptySummary();
 
-        if ($product->variants->isNotEmpty()) {
-            foreach ($product->variants as $variant) {
+        // Solo las variantes que son efectivamente dropshipping (propio o heredado del producto).
+        $dropshipVariants = $product->variants->filter(fn($v) => $v->isDropshipping());
+
+        if ($dropshipVariants->isNotEmpty()) {
+            foreach ($dropshipVariants as $variant) {
                 $this->syncVariant($product, $variant, $threshold, $summary);
                 usleep(200000); // 0.2s entre requests
             }
-        } else {
+        } elseif ($product->is_dropshipping) {
             $this->syncSimpleProduct($product, $threshold, $summary);
             usleep(200000);
         }

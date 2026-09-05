@@ -141,8 +141,10 @@ class OrderService
             $newTotalQuantity = $currentDetailQuantity + $quantityToAdd;
 
             // Validar stock: los dropshipping solo requieren estar disponibles (stock > 0).
-            // Disponibilidad por variante si corresponde, si no a nivel producto.
-            if ($product->is_dropshipping) {
+            // Disponibilidad por variante si corresponde, si no a nivel producto. El flag de
+            // dropshipping es el efectivo (propio de la variante si fue overrideado, si no el del producto).
+            $isDropshipping = $variant ? $variant->isDropshipping() : $product->is_dropshipping;
+            if ($isDropshipping) {
                 $availableStock = $variant ? $variant->stock : $product->stock;
                 if ($availableStock < 1) {
                     throw ValidationException::withMessages([
@@ -209,7 +211,7 @@ class OrderService
             $detail->save(); // Guardar el detalle (actualizado o recién creado)
 
             // --- 5. AJUSTAR STOCK (los dropshipping no descuentan stock) ---
-            if (!$product->is_dropshipping) {
+            if (!$isDropshipping) {
                 if ($variant) {
                     $variant->stock -= $quantityToAdd;
                     $variant->save();
@@ -236,6 +238,7 @@ class OrderService
         return DB::transaction(function () use ($detail) {
             $order = $detail->order;
             $product = $detail->product;
+            $variant = $detail->variant_id ? $detail->variant : null;
 
             if ($order->status !== OrderStatus::Processing) {
                 throw ValidationException::withMessages([
@@ -243,7 +246,8 @@ class OrderService
                 ]);
             }
             // 1. DEVOLVER STOCK (los dropshipping no manejan stock)
-            if (!($product && $product->is_dropshipping)) {
+            $isDropshipping = $variant ? $variant->isDropshipping() : ($product && $product->is_dropshipping);
+            if (!$isDropshipping) {
                 if ($detail->variant_id && $detail->variant) {
                     $detail->variant->increment('stock', $detail->quantity);
                 } elseif ($product) {
@@ -311,7 +315,10 @@ class OrderService
         if (isset($data['status']) && $data['status'] === 'cancelled' && $order->status !== 'cancelled') {
             foreach ($order->details as $detail) {
                 if ($detail->variant_id && $detail->variant) {
-                    $detail->variant->increment('stock', $detail->quantity);
+                    // Los dropshipping no manejan stock, no se devuelve nada
+                    if (!$detail->variant->isDropshipping()) {
+                        $detail->variant->increment('stock', $detail->quantity);
+                    }
                 } else {
                     $product = Product::find($detail->product_id);
                     // Los dropshipping no manejan stock, no se devuelve nada
@@ -361,6 +368,8 @@ class OrderService
         return DB::transaction(function () use ($detail, $data) {
             $order = $detail->order;
             $product = $detail->product;
+            $variant = $detail->variant_id ? $detail->variant : null;
+            $isDropshipping = $variant ? $variant->isDropshipping() : ($product && $product->is_dropshipping);
 
             // 1. VALIDAR ESTADO DEL PEDIDO
             if ($order->status !== OrderStatus::Processing) {
@@ -374,7 +383,7 @@ class OrderService
             $newQuantity = $data['quantity'] ?? $currentQuantity;
             $quantityDifference = $newQuantity - $currentQuantity; // Positivo si se suma, negativo si se resta
 
-            if ($quantityDifference > 0 && !($product && $product->is_dropshipping)) {
+            if ($quantityDifference > 0 && !$isDropshipping) {
                 $availableStock = ($detail->variant_id && $detail->variant)
                     ? $detail->variant->stock
                     : $product->stock;
@@ -462,7 +471,7 @@ class OrderService
             $detail->save();
 
             // 6. AJUSTAR STOCK (variante si tiene, producto si no; dropshipping no maneja stock)
-            if (!($product && $product->is_dropshipping)) {
+            if (!$isDropshipping) {
                 if ($detail->variant_id && $detail->variant) {
                     $detail->variant->stock -= $quantityDifference;
                     $detail->variant->save();

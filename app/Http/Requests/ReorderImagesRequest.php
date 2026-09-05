@@ -15,6 +15,7 @@ class ReorderImagesRequest extends FormRequest
             'positions.*'          => 'required|array',
             'positions.*.id'       => 'required|integer|exists:images,id',
             'positions.*.position' => 'required|integer|min:0',
+            'variant_id'           => 'nullable|integer|exists:product_variants,id',
         ];
     }
 

@@ -144,6 +144,7 @@ class ProductService
             'promotions',
             'variants.images',
             'variants.attributeValues.categoryAttribute',
+            'variants.priceLists',
             'attributeValues'
         ]);
 
@@ -270,6 +271,7 @@ class ProductService
             'variants' => fn($q) => $q->where('is_active', true)->orderBy('id'),
             'variants.attributeValues.categoryAttribute',
             'variants.images',
+            'variants.priceLists',
             'attributeValues',
         ]);
 
@@ -603,6 +605,10 @@ class ProductService
             ->where('product_id', $product->id)
             ->get();
 
+        // Antes de borrar, guardamos qué "grupos" (base y/o variantes) van a quedar afectados
+        // para reindexar la posición de cada uno por separado.
+        $touchedVariantIds = $imagesToDelete->pluck('variant_id')->unique();
+
         foreach ($imagesToDelete as $image) {
             /** @var \App\Models\Image $image */
 
@@ -616,7 +622,9 @@ class ProductService
             $image->delete();
         }
 
-        $this->reindexPositions($product);
+        foreach ($touchedVariantIds as $variantId) {
+            $this->reindexPositions($product, $variantId);
+        }
     }
 
     /**
@@ -697,10 +705,15 @@ class ProductService
      * * @param Product $product
      * @return void
      */
-    protected function reindexPositions(Product $product): void
+    protected function reindexPositions(Product $product, ?int $variantId = null): void
     {
-        // Obtener todas las imágenes restantes, ordenadas por su posición actual
-        $remainingImages = $product->images()
+        // Obtener todas las imágenes restantes, ordenadas por su posición actual.
+        // Para variantes bypaseamos el scope de la relación (que filtra whereNull variant_id).
+        $query = $variantId
+            ? Image::where('product_id', $product->id)->where('variant_id', $variantId)
+            : $product->images();
+
+        $remainingImages = $query
             ->orderBy('position', 'asc')
             ->get();
 
@@ -723,7 +736,7 @@ class ProductService
      * @param array $imagePositions Array asociativo [image_id => new_position]
      * @return void
      */
-    public function reorderImages(Product $product, array $imagePositions): void
+    public function reorderImages(Product $product, array $imagePositions, ?int $variantId = null): void
     {
         // $imagePositions debería ser un array de arrays o un array de objetos si se
         // envía desde el front-end, pero si solo contiene el orden, un array simple
@@ -731,10 +744,13 @@ class ProductService
         // Asumiendo que $imagePositions es: [ID_IMAGEN_1 => POSICION_1, ID_IMAGEN_2 => POSICION_2, ...]
 
         foreach ($imagePositions as $imageId => $newPosition) {
-            // Aseguramos que la ID de imagen pertenezca al producto
-            $product->images()
-                ->where('id', $imageId)
-                ->update(['position' => $newPosition]);
+            // Para variantes bypaseamos el scope de la relación (que filtra whereNull variant_id).
+            $query = $variantId
+                ? Image::where('product_id', $product->id)->where('variant_id', $variantId)
+                : $product->images();
+
+            // Aseguramos que la ID de imagen pertenezca al producto (y a la variante, si aplica)
+            $query->where('id', $imageId)->update(['position' => $newPosition]);
         }
     }
 
@@ -833,6 +849,7 @@ class ProductService
             'description',
             'stock',
             'is_dropshipping',
+            'distinctive_category_attribute_id',
             // Agrega aquí cualquier otro campo simple que pueda actualizarse
         ]);
 

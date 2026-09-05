@@ -17,9 +17,14 @@ class StoreVariantRequest extends FormRequest
             'sku'              => 'required|string|max:100|unique:product_variants,sku',
             'stock'            => 'required|integer|min:0',
             'is_active'        => 'boolean',
+            'name'             => 'nullable|string|max:255',
+            'is_dropshipping'  => 'nullable|boolean',
             'attribute_values' => 'array',
             'attribute_values.*.category_attribute_id' => 'required|integer|exists:category_attributes,id',
             'attribute_values.*.value'                 => 'required|string|max:255',
+            'prices'                     => 'array',
+            'prices.*.price_list_id'     => 'required|integer|exists:price_lists,id',
+            'prices.*.price'             => 'required|numeric|min:0',
         ];
     }
 }

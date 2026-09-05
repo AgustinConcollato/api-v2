@@ -15,6 +15,7 @@ class UpdateProductRequest extends FormRequest
             'description'     => 'nullable|string',
             'stock'           => 'nullable|integer|min:0',
             'is_dropshipping' => 'nullable|boolean',
+            'distinctive_category_attribute_id' => 'nullable|integer|exists:category_attributes,id',
         ];
     }
 }

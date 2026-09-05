@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids; // Necesario para la PK UUID
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 
 class Product extends Model
@@ -25,7 +26,8 @@ class Product extends Model
         'stock_updated_at',
         'is_dropshipping',
         'sku',
-        'status'
+        'status',
+        'distinctive_category_attribute_id',
     ];
 
     protected $casts = [
@@ -189,5 +191,13 @@ class Product extends Model
     public function attributeValues(): HasMany
     {
         return $this->hasMany(ProductAttributeValue::class)->with('categoryAttribute.options');
+    }
+
+    /**
+     * Atributo de categoría que distingue a las variantes de este producto (ej. Talle vs Color).
+     */
+    public function distinctiveAttribute(): BelongsTo
+    {
+        return $this->belongsTo(CategoryAttribute::class, 'distinctive_category_attribute_id');
     }
 }

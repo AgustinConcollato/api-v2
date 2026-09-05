@@ -180,6 +180,7 @@ class ProductController
             'variants.attributeValues.categoryAttribute',
             'variants.images',
             'variants.barcodes',
+            'variants.priceLists' => fn($q) => $priceListId ? $q->where('price_list_id', $priceListId) : $q,
             'promotions' => fn($q) => $q->active(),
             'promotions.priceLists',
         ]);
@@ -364,15 +365,21 @@ class ProductController
     public function reorderImages(ReorderImagesRequest $request, Product $product)
     {
         $validated = $request->validated();
+        $variantId = $validated['variant_id'] ?? null;
 
         $imagePositions = [];
         foreach ($validated['positions'] as $item) {
             $imagePositions[$item['id']] = $item['position'];
         }
 
-        DB::transaction(function () use ($product, $imagePositions) {
-            $this->productService->reorderImages($product, $imagePositions);
+        DB::transaction(function () use ($product, $imagePositions, $variantId) {
+            $this->productService->reorderImages($product, $imagePositions, $variantId);
         });
+
+        if ($variantId) {
+            $variant = $product->variants()->with('images')->find($variantId);
+            return response()->json(['images' => $variant?->images ?? []], 200);
+        }
 
         $product->images;
 

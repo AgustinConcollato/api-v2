@@ -39,7 +39,7 @@ class ProductVariantController
     public function index(Product $product)
     {
         $variants = $product->variants()
-            ->with(['attributeValues.categoryAttribute.options', 'barcodes', 'images'])
+            ->with(['attributeValues.categoryAttribute.options', 'barcodes', 'images', 'priceLists'])
             ->get();
 
         $categoryAttributes = $this->getDeepestCategoryAttributes($product);
@@ -61,9 +61,11 @@ class ProductVariantController
         }
 
         $variant = $product->variants()->create([
-            'sku'       => $validated['sku'],
-            'stock'     => $validated['stock'],
-            'is_active' => $validated['is_active'] ?? true,
+            'sku'             => $validated['sku'],
+            'stock'           => $validated['stock'],
+            'is_active'       => $validated['is_active'] ?? true,
+            'name'            => $validated['name'] ?? null,
+            'is_dropshipping' => $validated['is_dropshipping'] ?? null,
         ]);
 
         foreach ($validated['attribute_values'] ?? [] as $av) {
@@ -73,7 +75,9 @@ class ProductVariantController
             ]);
         }
 
-        return response()->json($variant->load(['attributeValues.categoryAttribute.options', 'barcodes']), 201);
+        $this->syncVariantPrices($variant, $validated['prices'] ?? []);
+
+        return response()->json($variant->load(['attributeValues.categoryAttribute.options', 'barcodes', 'priceLists']), 201);
     }
 
     public function update(UpdateVariantRequest $request, Product $product, ProductVariant $variant)
@@ -91,9 +95,11 @@ class ProductVariantController
         }
 
         $attributes = [
-            'sku'       => $validated['sku'],
-            'stock'     => $validated['stock'],
-            'is_active' => $validated['is_active'] ?? $variant->is_active,
+            'sku'             => $validated['sku'],
+            'stock'           => $validated['stock'],
+            'is_active'       => $validated['is_active'] ?? $variant->is_active,
+            'name'            => $validated['name'] ?? null,
+            'is_dropshipping' => $validated['is_dropshipping'] ?? null,
         ];
 
         // Si se repone stock manualmente, registrar la fecha de "ingreso"
@@ -113,7 +119,11 @@ class ProductVariantController
             }
         }
 
-        return response()->json($variant->load(['attributeValues.categoryAttribute.options', 'barcodes']));
+        if (isset($validated['prices'])) {
+            $this->syncVariantPrices($variant, $validated['prices']);
+        }
+
+        return response()->json($variant->load(['attributeValues.categoryAttribute.options', 'barcodes', 'priceLists']));
     }
 
     public function storeBarcode(StoreBarcodeVariantRequest $request, Product $product, ProductVariant $variant)
@@ -143,6 +153,19 @@ class ProductVariantController
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Sincroniza los overrides de precio por lista de una variante.
+     * Una lista ausente en $prices borra su override (la variante vuelve a heredar el precio del producto).
+     */
+    private function syncVariantPrices(ProductVariant $variant, array $prices): void
+    {
+        $syncData = [];
+        foreach ($prices as $item) {
+            $syncData[$item['price_list_id']] = ['price' => $item['price']];
+        }
+        $variant->priceLists()->sync($syncData);
+    }
 
     private function getDeepestCategoryAttributes(Product $product): array
     {
